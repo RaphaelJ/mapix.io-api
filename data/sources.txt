@@ -1,0 +1,3 @@
+Images from :
+http://wang.ist.psu.edu/docs/home.shtml
+http://www.vision.caltech.edu/Image_Datasets/Caltech101/Caltech101.html
