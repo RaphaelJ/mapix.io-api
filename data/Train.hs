@@ -21,6 +21,9 @@ import Vision.Image (Image (..), HSVImage, HSVPixel (..), RGBImage)
 import qualified Vision.Image as I
 import Vision.Primitive
 
+maxImageSize :: Int
+maxImageSize = 320
+
 data Tag = Tag {
       tagFilename :: !FilePath
     , tagCategory :: !String
@@ -131,7 +134,16 @@ main = do
         files <- listFiles dir
         forM files $ \filename -> do
             Right img <- I.load filename Nothing
-            return (Tag filename catName, I.convert img)
+            let rgb   = I.convert img :: RGBImage
+            return (Tag filename catName, resize rgb)
+
+    resize img | maxSide > maxImageSize =
+                    let ratio = maxSide % maxImageSize
+                    in I.resize 
+               | otherwise              = img
+      where
+        Z :. h :. w = I.shape img
+        maxSide = max w h
 
     toHSV img = I.convert img :: HSVImage
 

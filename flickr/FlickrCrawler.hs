@@ -19,7 +19,9 @@ import Text.Printf
 
 import Control.Monad.Logger (runNoLoggingT)
 
-import Database.Persist (entityKey, insert_, insertBy, insertUnique)
+import Database.Persist (
+      entityKey, entityVal, insert_, insertBy, insertUnique, selectList
+    )
 import Database.Persist.Sql (runMigration)
 import Database.Persist.Sqlite (runSqlConn, withSqliteConn)
 
@@ -27,7 +29,8 @@ import qualified Flickr.API as F
 import qualified Flickr.Photos as F
 
 import Network.HTTP.Conduit (
-      Request, httpLbs, parseUrl, responseBody, withManager
+      Request, conduitManagerSettings, httpLbs, managerResponseTimeout
+    , parseUrl, responseBody, withManagerSettings
     )
 
 import System.Random.Shuffle (shuffle')
@@ -55,13 +58,22 @@ main = do
         [dictFile, sqliteFile, dstDir] -> do
             dict <- lines <$> readFile dictFile
 
-            withManager $ \http ->
+            let httpSetts = conduitManagerSettings {
+                  managerResponseTimeout = Just 30000
+                }
+
+            withManagerSettings httpSetts $ \http ->
               withSqliteConn (T.pack sqliteFile) $ \conn -> do
-                runSqlConn' conn (runMigration migrateAll)
+                skipPics <- runSqlConn' conn $ do
+                    runMigration migrateAll
+                    selectList [] []
 
-                pics <- liftIO $ photos (mkStdGen 0) dict
+                let skipIds = map (T.unpack . flickrImagePhotoId. entityVal)
+                                  skipPics
 
-                forM_ (zip [(1::Int)..] pics) $ \(i, pic) -> do
+                pics <- liftIO $ photos (mkStdGen 0) dict skipIds
+
+                forM_ (zip [(length skipIds + 1)..] pics) $ \(i, pic) -> do
                     mKey <- addPhoto http conn dstDir pic
 
                     case mKey of
@@ -94,10 +106,10 @@ main = do
     runSqlConn' conn action = runNoLoggingT $ runSqlConn action conn
 
 -- | Returns an infinite list of FlickR photos taken from random searches using
--- the given dictionnary and random generator.
-photos :: RandomGen g => g -> [String] -> IO [Photo]
-photos gen dict =
-    go dict' [] 1 S.empty
+-- the given dictionnary and random generator. Skips images from the given list.
+photos :: RandomGen g => g -> [String] -> [F.PhotoID] -> IO [Photo]
+photos gen dict skip =
+    go dict' [] 1 (S.fromList skip)
   where
     filters = F.nullSearchConstraints {
           F.s_license = Just ["4"] -- Attribution License
