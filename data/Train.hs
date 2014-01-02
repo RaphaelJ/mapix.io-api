@@ -8,6 +8,7 @@ import Control.Parallel.Strategies
 import Data.Function
 import Data.Int
 import Data.List
+import Data.Ratio
 import Data.Word
 import System.Directory (
       doesDirectoryExist, doesFileExist, getDirectoryContents
@@ -139,7 +140,9 @@ main = do
 
     resize img | maxSide > maxImageSize =
                     let ratio = maxSide % maxImageSize
-                    in I.resize 
+                        w'    = round $ w % 1 * ratio
+                        h'    = round $ h % 1 * ratio
+                    in I.resize img I.Bilinear (Z :. h' :. w')
                | otherwise              = img
       where
         Z :. h :. w = I.shape img

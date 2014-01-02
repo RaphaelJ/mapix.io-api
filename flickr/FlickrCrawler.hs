@@ -28,9 +28,10 @@ import Database.Persist.Sqlite (runSqlConn, withSqliteConn)
 import qualified Flickr.API as F
 import qualified Flickr.Photos as F
 
+import Control.Monad.Trans.Resource (mkResource, runResourceT, with)
 import Network.HTTP.Conduit (
-      Request, conduitManagerSettings, httpLbs, managerResponseTimeout
-    , parseUrl, responseBody, withManagerSettings
+      HttpException, Request, closeManager, conduitManagerSettings, httpLbs
+    , managerResponseTimeout, newManager, parseUrl, responseBody
     )
 
 import System.Random.Shuffle (shuffle')
@@ -61,8 +62,9 @@ main = do
             let httpSetts = conduitManagerSettings {
                   managerResponseTimeout = Just 30000
                 }
+                httpMan   = mkResource (newManager httpSetts) closeManager
 
-            withManagerSettings httpSetts $ \http ->
+            with httpMan $ \http ->
               withSqliteConn (T.pack sqliteFile) $ \conn -> do
                 skipPics <- runSqlConn' conn $ do
                     runMigration migrateAll
@@ -84,7 +86,7 @@ main = do
         _            ->
             putStrLn "Usage: loader-flickr <dict file> <sqlite db> <dest dir>"
   where
-    addPhoto http conn dstDir Photo { .. } = do
+    addPhoto http conn dstDir Photo { .. } = E.handle onException $ do
         let path = dstDir </> T.unpack pId <.> pImageExt
 
         bs <- httpLbs pImageReq http
@@ -98,12 +100,15 @@ main = do
             lift $ mapM_ (insertTag key) pTags
 
             return key
+      where
+        onException (_ :: HttpException) = return Nothing
 
     insertTag picKey tag = do
         tagKey <- either entityKey id <$> insertBy (FlickrTag tag)
         insert_ $ FlickrImageTag picKey tagKey
 
-    runSqlConn' conn action = runNoLoggingT $ runSqlConn action conn
+    runSqlConn' conn action = 
+        runNoLoggingT $ runResourceT $ runSqlConn action conn
 
 -- | Returns an infinite list of FlickR photos taken from random searches using
 -- the given dictionnary and random generator. Skips images from the given list.
