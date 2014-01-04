@@ -3,20 +3,28 @@ module Algorithm.Index (ImageIndex)
 
 type UserName = Text
 
-newtype ImageIndex = ImageIndex (Map UserName UserIndex)
-    deriving (Show)
-    
+type HistogramHash = ByteString
+
+data ImageIndex = ImageIndex {
+      iiUsers   :: !(TVar (Map UserName      UserIndex))
+    , iiHists   :: !(TVar (Map HistogramHash Histogram))
+    } deriving Show
+
+type TagName = Text
+
 data UserIndex = UserIndex {
-      uiTags    :: Map TagName UserIndex
-    , uiImages  :: [Image]
-    }
+      uiTags    :: !(TVar (Map TagName UserIndex))
+    , uiImages  :: !(TVar (Map Hmac    Image))
+    } deriving Show
 
 data Image = Image {
-      iHist     :: !Histogram
-    }
+      iHmac     :: !Hmac
+    , iName     :: !(Maybe Text)
+    , iHist     :: !Histogram
+    } deriving (Show, Ord)
 
 data Histogram = Histogram {
       h5D       :: !(H.Histogram DIM5 Float)
     , h3D       :: !(H.Histogram DIM5 Float)
     , hCount    :: !(TVar Int)
-    }
+    } deriving Show
