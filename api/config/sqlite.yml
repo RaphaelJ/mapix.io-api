@@ -1,0 +1,20 @@
+Default: &defaults
+  database: mapix-api.sqlite3
+  poolsize: 10
+
+Development:
+  <<: *defaults
+
+Testing:
+  database: mapix-api_test.sqlite3
+  <<: *defaults
+
+Staging:
+  database: mapix-api_staging.sqlite3
+  poolsize: 100
+  <<: *defaults
+
+Production:
+  database: mapix-api_production.sqlite3
+  poolsize: 100
+  <<: *defaults
