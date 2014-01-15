@@ -1,6 +1,7 @@
 module Model where
 
 import Prelude
+import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Vision.Histogram as H
 import Vision.Primitive (DIM5)
@@ -25,11 +26,11 @@ UniqueHmac
     deriving Show
 
 Histogram
-    sha1                        Text
+    hash                        ByteString -- SHA-1 of the histogram.
     value                       (H.Histogram DIM5 Float)
     count                       Int
 
-    UniqueHistogramSha1         sha1
+    UniqueHistogramHash         hash
     deriving Show
 
 Image
