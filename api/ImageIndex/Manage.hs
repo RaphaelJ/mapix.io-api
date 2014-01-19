@@ -5,26 +5,64 @@ import Control.Applicative
 import Control.Concurrent.STM (modifyTVar', newTVarIO, readTVar, writeTVar)
 import Control.Monad
 import Control.Monad.STM
+import Data.Time.Clock (UTCTime, getCurrentTime)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
 newIndex :: IO ImageIndex
-newIndex = ImageIndex <$> newTVarIO M.empty <*> newTVarIO M.empty
+newIndex = do
+    lastCalled <- LastCalled <$> newTVarIO Nothing <*> newTVarIO Nothing
+                             <*> newTVarIO M.empty
+    ImageIndex <$> newTVarIO M.empty <*> newTVarIO M.empty <*> pure lastCalled
 
 -- Users -----------------------------------------------------------------------
 
 -- | Searches for an existing user index entry by the user name and returns it.
 -- If a such entry doesn\'t exists, creates a new one.
-getUserIndex :: ImageIndex -> UserName -> STM UserIndex
-getUserIndex ImageIndex {..} username = do
+getUserIndex :: ImageIndex -> UserName -> UTCTime -> STM UserIndex
+getUserIndex ImageIndex {..} username currentTime = do
     iiUserVal <- readTVar iiUsers
     case M.lookup username iiUserVal of
         Just userIdx -> return userIdx
         Nothing      -> do
             rootTag <- Tag RootTag <$> newTVar M.empty <*> newTVar S.empty
-            userIdx <- UserIndex rootTag <*> newTVar M.empty
+            userIdx <- UserIndex username rootTag <*> newTVar M.empty
             writeTVar (M.insert username userIdx iiUserVal)
+
+            lastCallNode <- LastCalledNode <$> newTVar currentTime
+                                           <*> newTVar Nothing
+                                           <*>
+
             return userIdx
+
+-- | Updates the last call time for the user index and updates the least
+-- recently used queue.
+touchUserIndex :: ImageIndex -> UserIndex -> UTCTime -> STM ()
+touchUserIndex ImageIndex {..} UserIndex {..} currentTime = do
+    Just node <- M.lookup uiName <$> readTVar (lcMap iiLastCalled)
+    detatchNode node
+    writeTVar (lcnTime node) currentTime
+    attachNode node
+  where
+    -- Removes the LastCalledNode from the LRU queue.
+    detatchNode node = do
+        prev <- readTVar (lcnPrev node)
+        next <- readTVar (lcnNext node)
+
+        case prev of
+            Just node' -> writeTVar (lcnNext node') next
+            Nothing    -> writeTVar (lcFirst iiLastCalled) next
+
+        case next of
+            Just node' -> writeTVar (lcnPrev node') prev
+            Nothing    -> writeTVar (lcLast iiLastCalled) prev
+
+    -- Adds the LastCalledNode to the LRU queue and keeps the queue sorted.
+    attachNode node prevVar = do
+        prev <- readTVar (lcnPrev node)
+        case prev of
+            Just prev ->
+            Nothing   -> 
 
 -- Tags ------------------------------------------------------------------------
 

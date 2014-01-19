@@ -19,9 +19,9 @@ library
                      Handler.Tag
                      Import
                      Model
-                     Model.Field
                      Settings
                      Settings.Development
+                     Util.Histogram
                      Util.Hmac
                      Util.Hmac.Type
 
