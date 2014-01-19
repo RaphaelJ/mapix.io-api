@@ -42,7 +42,7 @@ touchUserIndex ImageIndex {..} UserIndex {..} currentTime = do
     Just node <- M.lookup uiName <$> readTVar (lcMap iiLastCalled)
     detatchNode node
     writeTVar (lcnTime node) currentTime
-    attachNode node
+    attachNode node Nothing (lcnPrev iiLastCalled)
   where
     -- Removes the LastCalledNode from the LRU queue.
     detatchNode node = do
@@ -58,11 +58,25 @@ touchUserIndex ImageIndex {..} UserIndex {..} currentTime = do
             Nothing    -> writeTVar (lcLast iiLastCalled) prev
 
     -- Adds the LastCalledNode to the LRU queue and keeps the queue sorted.
-    attachNode node prevVar = do
-        prev <- readTVar (lcnPrev node)
-        case prev of
-            Just prev ->
-            Nothing   -> 
+    attachNode node prevNode nextVar = do
+        mNext <- readTVar nextVar
+        case mNext of
+            Just next | lcnTime next < currentTime -> do
+                attachNode node next (lcnNext next)
+                      | otherwise                  -> do
+                -- Inner node
+                writeTVar (lcnPrev node) prevNode
+                writeTVar (lcnNext node) (Just next)
+
+                writeTVar  (Just node)
+                writeTVar nextVar (Just node)
+            Nothing -> do
+                -- Last node
+                writeTVar (lcnPrev node) prevNode
+                writeTVar (lcnNext node) Nothing
+
+                writeTVar nextVar (Just node)
+                writeTVar (lcLast iiLastCalled) (Just node)
 
 -- Tags ------------------------------------------------------------------------
 
