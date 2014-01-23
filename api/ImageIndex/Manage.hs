@@ -42,7 +42,7 @@ touchUserIndex ImageIndex {..} UserIndex {..} currentTime = do
     Just node <- M.lookup uiName <$> readTVar (lcMap iiLastCalled)
     detatchNode node
     writeTVar (lcnTime node) currentTime
-    attachNode node Nothing (lcnPrev iiLastCalled)
+    attachNode node Nothing (lcFirst iiLastCalled)
   where
     -- Removes the LastCalledNode from the LRU queue.
     detatchNode node = do
@@ -50,32 +50,35 @@ touchUserIndex ImageIndex {..} UserIndex {..} currentTime = do
         next <- readTVar (lcnNext node)
 
         case prev of
-            Just node' -> writeTVar (lcnNext node') next
+            Just node' -> writeTVar (lcnNext node')        next
             Nothing    -> writeTVar (lcFirst iiLastCalled) next
 
         case next of
-            Just node' -> writeTVar (lcnPrev node') prev
+            Just node' -> writeTVar (lcnPrev node')       prev
             Nothing    -> writeTVar (lcLast iiLastCalled) prev
 
-    -- Adds the LastCalledNode to the LRU queue and keeps the queue sorted.
-    attachNode node prevNode nextVar = do
-        mNext <- readTVar nextVar
+    -- Given the previous node and its next pointer, adds the LastCalledNode to
+    -- the LRU queue and keeps the queue sorted.
+    attachNode :: LastCalledNode -> Maybe LastCalledNode
+               -> TVar (Maybe UserIndex) -> STM ()
+    attachNode node prev nextRef = do
+        mNext <- readTVar nextRef
         case mNext of
             Just next | lcnTime next < currentTime -> do
-                attachNode node next (lcnNext next)
+                attachNode node (lcnNext next)
                       | otherwise                  -> do
-                -- Inner node
-                writeTVar (lcnPrev node) prevNode
+                -- Inner/First node.
+                writeTVar (lcnPrev node) prev
                 writeTVar (lcnNext node) (Just next)
 
-                writeTVar  (Just node)
-                writeTVar nextVar (Just node)
+                writeTVar nextRef        (Just node)
+                writeTVar (lcnPrev next) (Just node)
             Nothing -> do
-                -- Last node
-                writeTVar (lcnPrev node) prevNode
+                -- Last node.
+                writeTVar (lcnPrev node) prev
                 writeTVar (lcnNext node) Nothing
 
-                writeTVar nextVar (Just node)
+                writeTVar nextRef               (Just node)
                 writeTVar (lcLast iiLastCalled) (Just node)
 
 -- Tags ------------------------------------------------------------------------

@@ -68,6 +68,6 @@ data LastCalled = LastCalled {
 
 data LastCalledNode = LastCalledNode {
       lcnTime :: !(TVar UTCTime)
-    , lcnPrev :: !(TVar (Maybe UserIndex))
-    , lcnNext :: !(TVar (Maybe UserIndex))
+    , lcnPrev :: !(TVar (Maybe LastCalledNode))
+    , lcnNext :: !(TVar (Maybe LastCalledNode))
     }
