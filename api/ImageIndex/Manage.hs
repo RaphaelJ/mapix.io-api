@@ -11,75 +11,39 @@ import qualified Data.Set as S
 
 newIndex :: IO ImageIndex
 newIndex = do
-    lastCalled <- LastCalled <$> newTVarIO Nothing <*> newTVarIO Nothing
-                             <*> newTVarIO M.empty
-    ImageIndex <$> newTVarIO M.empty <*> newTVarIO M.empty <*> pure lastCalled
+    lastCalled <- LastCalledQueue <$> newTVarIO Nothing <*> newTVarIO Nothing
+                                  <*> newTVarIO M.empty
+    ImageIndex <$> newTVarIO M.empty <*> pure lastCalled
 
 -- Users -----------------------------------------------------------------------
 
 -- | Searches for an existing user index entry by the user name and returns it.
--- If a such entry doesn\'t exists, creates a new one.
+-- If a such entry doesn\'t exist, creates a new one.
 getUserIndex :: ImageIndex -> UserName -> UTCTime -> STM UserIndex
 getUserIndex ImageIndex {..} username currentTime = do
     iiUserVal <- readTVar iiUsers
     case M.lookup username iiUserVal of
         Just userIdx -> return userIdx
         Nothing      -> do
+            -- Creates the user index.
             rootTag <- Tag RootTag <$> newTVar M.empty <*> newTVar S.empty
-            userIdx <- UserIndex username rootTag <*> newTVar M.empty
-            writeTVar (M.insert username userIdx iiUserVal)
+            userIdx <- UserIndex username <$> newTVar M.empty <*> pure rootTag
+            writeTVar iiUsers (M.insert username userIdx iiUserVal)
 
-            lastCallNode <- LastCalledNode <$> newTVar currentTime
-                                           <*> newTVar Nothing
-                                           <*>
+            -- Inserts the new user index in the last call queue.
+            node <- attachNode iiLastCalled currentTime (newNode userIdx)
+            modifyTVar (lcMap iiLastCalled) (M.insert username node)
 
             return userIdx
 
--- | Updates the last call time for the user index and updates the least
--- recently used queue.
-touchUserIndex :: ImageIndex -> UserIndex -> UTCTime -> STM ()
-touchUserIndex ImageIndex {..} UserIndex {..} currentTime = do
-    Just node <- M.lookup uiName <$> readTVar (lcMap iiLastCalled)
-    detatchNode node
-    writeTVar (lcnTime node) currentTime
-    attachNode node Nothing (lcFirst iiLastCalled)
-  where
-    -- Removes the LastCalledNode from the LRU queue.
-    detatchNode node = do
-        prev <- readTVar (lcnPrev node)
-        next <- readTVar (lcnNext node)
+    newNode userIdx prev next =
+        LastCalledNode userIdx <$> newTVar currentTime <*> newTVar prev
+                               <*> newTVar next
 
-        case prev of
-            Just node' -> writeTVar (lcnNext node')        next
-            Nothing    -> writeTVar (lcFirst iiLastCalled) next
-
-        case next of
-            Just node' -> writeTVar (lcnPrev node')       prev
-            Nothing    -> writeTVar (lcLast iiLastCalled) prev
-
-    -- Given the previous node and its next pointer, adds the LastCalledNode to
-    -- the LRU queue and keeps the queue sorted.
-    attachNode :: LastCalledNode -> Maybe LastCalledNode
-               -> TVar (Maybe UserIndex) -> STM ()
-    attachNode node prev nextRef = do
-        mNext <- readTVar nextRef
-        case mNext of
-            Just next | lcnTime next < currentTime -> do
-                attachNode node (lcnNext next)
-                      | otherwise                  -> do
-                -- Inner/First node.
-                writeTVar (lcnPrev node) prev
-                writeTVar (lcnNext node) (Just next)
-
-                writeTVar nextRef        (Just node)
-                writeTVar (lcnPrev next) (Just node)
-            Nothing -> do
-                -- Last node.
-                writeTVar (lcnPrev node) prev
-                writeTVar (lcnNext node) Nothing
-
-                writeTVar nextRef               (Just node)
-                writeTVar (lcLast iiLastCalled) (Just node)
+removeUserIndex :: ImageIndex -> UserIndex -> STM ()
+removeUserIndex ImageIndex {..} UserIndex {..} = do
+    modifyTVar' iiUsers (M.delete uiName)
+    detatchNode (uiName  
 
 -- Tags ------------------------------------------------------------------------
 
@@ -87,7 +51,7 @@ touchUserIndex ImageIndex {..} UserIndex {..} currentTime = do
 -- Creates tags which don\'t exist on the path.
 getTag :: UserIndex -> [TagName] -> STM Tag
 getTag UserIndex {..} tagPath = do
-    dfs tagPath uiRootTag
+    readTVar uiRootTag >>= dfs tagPath
   where
     dfs []       tag               = return tag
     dfs (t : ts) parent@(Tag {..}) =
@@ -116,75 +80,142 @@ lookupTag UserIndex {..} tagPath = do
 
 -- | Removes a tag and its sub-tags. Unregisters every image links to those
 -- tags. Does nothing for the root tag.
-removeTag :: UserIndex -> Tag SubTag -> STM ()
-removeTag UserIndex {..} (Tag RootTag              _       _     ) = return ()
-removeTag UserIndex {..} (Tag (SubTag name parent) subTags images) = do
+removeTag :: UserIndex -> Tag -> STM ()
+removeTag _                       (Tag RootTag              _       _   ) =
+    return ()
+removeTag ui@(UserIndex {..}) tag@(Tag (SubTag name parent) subTags imgs) = do
     unBindParent parent
     (M.elems  <$> readTVar subTags) >>= unBindSubs
-    (S.toList <$> readTVar images)  >>= unBindImages
+    (S.toList <$> readTVar imgs)    >>= unBindImages
   where
     unBindParent Nothing       = return ()
-    unBindParent (Just parent) = do
-        subTags' <- M.delete name <$> readTVar (tSubTags parent)
-        if M.null subTags' then removeTag parent
-                           else writeTVar (tSubTags parent) subTags'
+    unBindParent (Just Tag {..}) = do
+        subTags' <- M.delete name <$> readTVar tSubTags
+        imgs'    <- readTVar tImages
+        writeTVar tSubTags subTags'
 
-    unBindSubs subs = mapM_ removeTag subs
+        when (M.null subTags' && S.null imgs') $
+            removeTag parent
 
-    unBindImages images =
-        forM_ images $ \image@(Image {..}) -> do
-            iTags' <- S.delete tag <$> readTVar iTags
-            when (S.null iTags') $
-                -- When the image is no more referenced anywhere, we need to
-                -- add it to the user's root tag.
-                modifyTVar' (tImages uiRootTag) (S.insert image)
-            writeTVar iTags iTags'
+    unBindSubs = mapM_ (removeTag ui)
 
--- Histograms ------------------------------------------------------------------
+    unBindImages = mapM_ (unBindImageTag' ui tag)
 
--- | Searches for an existing histogram by its hash.
--- If a such entry doesn\'t exists, creates a new one.
-getHistogram :: HistogramHash -> H.Histogram DIM5 Float
-             -> H.Histogram DIM3 Float -> STM Histogram
-getHistogram hash hist5D hist3D = do
-    iiHistVal <- readTVar iiHists
-    case M.lookup hash iiHistVal of
-        Just hist -> return hist
-        Nothing   -> do
-            hist <- Histogram hash hist5D hist3D <$> newTVar 0
-            writeTVar (M.insert hash hist iiHistVal)
-            return hist
+-- | Calls 'removeTag' if and only there is no more images in this tag and in
+-- all of its children.
+removeTagIfOrphan :: UserIndex -> Tag -> STM ()
+removeTagIfOrphan _      (Tag RootTag _ _  _ _) = return ()
+removeTagIfOrphan ui tag@(Tag (SubTag _ _) _ _) = do
+    orphan <- isEmpty tag
+    if orphan then removeTag ui tag
+                else return ()
+  where
+    isEmpty tag'@(Tag {..}) = do
+        imgs'       <- readTVar tImages
+        subsAreEmpty <- readTVar tSubTags >>= allM isEmpty
+        return $! S.null imgs' && subsAreEmpty
+
+    allM _ []     = True
+    allM p (x:xs) = do ret <- p x
+                       if ret then allM xs
+                              else return False
+
+-- | Creates a link between the tag and the image.
+bindImageTag :: UserIndex -> Tag -> Image -> STM ()
+bindImageTag tag@(Tag {..}) img = modifyTVar' tImages (S.insert img)
+
+-- | Removes the link between the tag and the image. Doesn't remove the tag if
+-- no more image is pointing to it.
+unBindImageTag :: UserIndex -> Tag -> Image -> STM ()
+unBindImageTag ui@(UserIndex {..}) tag@(Tag {..}) img =
+    modifyTVar' tImages (S.delete img)
+
+-- | Returns the sets of images of the given tag and of its children.
+getTagImages :: Tag -> STM [Set Image]
+getTagImages =
+    dfs []
+  where
+    dfs acc Tag {..} = do
+        subs <- readTVar tSubTags
+        imgs <- readTVar tImages
+        foldM dfs (imgs : acc) (M.elems subs)
 
 -- Images ----------------------------------------------------------------------
 
--- | Allocates a new image and binds it to the given users and the given tags.
--- Increments by one the 'Histogram' counter.
-newImage :: UserIndex -> Hmac -> Maybe Text -> [Tag] -> Histogram
-         -> STM Image
-newImage UserIndex {..} hmac mName tags hist@(Histogram {..}) = do
-    image <- Image hmac <$> newTVar mName <*> newTVar tags <*> pure hist
-
-    modifyTVar' uiImages (M.insert hmac image)
-
-    forM_ tags $ \Tag {..} -> do
-        modifyTVar' utImages (S.insert image)
-
-    modifyTVar' hCount (+ 1)
-
-    return image
+-- | Binds the given image and all its tags to the given user.
+addImage :: UserIndex -> Image -> STM ()
+addImage ui@(UserIndex {..}) img@(Image {..}) = do
+    modifyTVar' uiImages (M.insert iHmac img)
+    mapM (\tag -> unBindImageTag ui tag img) iTags
 
 lookupImage :: UserIndex -> Hmac -> STM (Maybe Image)
 lookupImage UserIndex {..} hmac = M.lookup hmac <$> readTVar uiImages
 
-removeImage :: ImageIndex -> UserIndex -> Image -> STM ()
-removeImage ImageIndex {..} UserIndex {..} Image {..} = do
+-- | Unbinds the given image and all its tags from the given user.
+removeImage :: UserIndex -> Image -> STM ()
+removeImage ui@(UserIndex {..}) img@(Image {..}) = do
     modifyTVar' uiImages (M.delete iHmac)
-    readTVar iTags >>= unBindTags
-    readTVar iHist >>= unBindHist
-  where
-    unBindTags = 
+    mapM (\tag -> unBindImageTag ui tag img) iTags
 
-    unBindHist Histogram {..} = do
-        count <- readTVar hCount
-        if count <= 1 then modifyTVar' iiHists (M.delete hHash)
-                      else writeTVar hCount (count - 1)
+-- Last called queue -----------------------------------------------------------
+
+-- | Updates the last call time for the user index and updates the least
+-- recently used queue. Does nothing if the user index doesn\'t exist.
+-- O(n).
+touchUserIndex :: LastCalledQueue -> UserName -> UTCTime -> STM ()
+touchUserIndex lc@(LastCalledQueue {..}) username currentTime = do
+    mNode <- M.lookup username <$> readTVar (lcMap iiLastCalled)
+    case mNode of
+        Just node -> do
+            detatchNode lc node
+            attachNode  lc currentTime (updateNode node)
+        Nothing -> return ()
+  where
+    updateNode node@(LastCalledNode {..}) mPrev mNext = do
+        writeTVar lcnTime currentTime
+        writeTVar lcnPrev mPrev
+        writeTVar lcnNext mNext
+        return node
+
+-- | Calls the given action with the previous and next nodes of the
+-- corresponding LRU queue position (determined by @currentTime@) in which the
+-- returned node will be inserted. Returns the inserted node.
+-- O(n).
+attachNode :: LastCalledQueue -> UTCTime ->
+           -> (Maybe LastCalledNode -> Maybe LastCalledNode
+               -> STM LastCalledNode)
+           -> STM LastCalledNode
+attachNode LastCalledQueue {..} currentTime nodeFct =
+    go Nothing lcFirst
+  where
+    go mPrev nextRef = do
+        mNext <- readTVar nextRef
+        case mNext of
+            Just next | lcnTime next < currentTime -> go next (lcnNext next)
+                      | otherwise                  -> do
+                -- Inner/First node.
+                node <- nodeFct mPrev mNext
+                writeTVar nextRef        (Just node)
+                writeTVar (lcnPrev next) (Just node)
+                return node
+            Nothing -> do
+                -- Last node.
+                node <- nodeFct mPrev mNext
+                writeTVar nextRef               (Just node)
+                writeTVar (lcLast iiLastCalled) (Just node)
+                return node
+
+-- Removes the specified node from the LRU queue.
+-- O(1).
+detatchNode :: ImageIndex -> LastCalledNode -> STM ()
+detatchNode LastCalledQueue {..} node = do
+    prev <- readTVar (lcnPrev node)
+    next <- readTVar (lcnNext node)
+
+    case prev of
+        Just node' -> writeTVar (lcnNext node') next
+        Nothing    -> writeTVar lcFirst         next
+
+    case next of
+        Just node' -> writeTVar (lcnPrev node') prev
+        Nothing    -> writeTVar lcLast          prev
