@@ -72,56 +72,25 @@ lookupTag UserIndex {..} tagPath = do
             Just tag -> dfs ts tag
             Nothing  -> return Nothing
 
--- | Removes a tag and its sub-tags. Unregisters every image links to those
--- tags. Does nothing for the root tag.
-removeTag :: UserIndex -> Tag -> STM ()
-removeTag _                       (Tag RootTag              _       _   ) =
-    return ()
-removeTag ui@(UserIndex {..}) tag@(Tag (SubTag name parent) subTags imgs) = do
-    unBindParent parent
-    (M.elems  <$> readTVar subTags) >>= unBindSubs
-    (S.toList <$> readTVar imgs)    >>= unBindImages
-  where
-    unBindParent Tag {..} = do
-        subTags' <- M.delete name <$> readTVar tSubTags
-        imgs'    <- readTVar tImages
-        writeTVar tSubTags subTags'
-
-        when (M.null subTags' && S.null imgs') $
-            removeTag parent
-
-    unBindSubs = mapM_ (removeTag ui)
-
-    unBindImages = mapM_ (unBindImageTag' ui tag)
-
--- | Calls 'removeTag' if and only there is no more images in this tag and in
--- all of its children.
-removeTagIfOrphan :: UserIndex -> Tag -> STM ()
-removeTagIfOrphan _      (Tag RootTag _ _  _ _) = return ()
-removeTagIfOrphan ui tag@(Tag (SubTag _ _) _ _) = do
+-- | Removes the tag if and only if there is no more image in this tag and in
+-- all of its children. Removes the parent tag if this one become orphan.
+removeTagIfOrphan :: Tag -> STM ()
+removeTagIfOrphan     (Tag RootTag              _ _) = return ()
+removeTagIfOrphan tag@(Tag (SubTag name parent) _ _) = do
     orphan <- isEmpty tag
-    if orphan then removeTag ui tag
-                else return ()
+    when orphan $ do
+        modifyTVar' (M.delete name) (tSubTags parent)
+        removeTagIfOrphan parent
   where
     isEmpty tag'@(Tag {..}) = do
-        imgs'       <- readTVar tImages
-        subsAreEmpty <- readTVar tSubTags >>= allM isEmpty
-        return $! S.null imgs' && subsAreEmpty
+        imgs' <- readTVar tImages
+        if S.null imgs' then readTVar tSubTags >>= allM isEmpty
+                        else return False
 
     allM _ []     = True
     allM p (x:xs) = do ret <- p x
                        if ret then allM xs
                               else return False
-
--- | Creates a link between the tag and the image.
-bindImageTag :: UserIndex -> Tag -> Image -> STM ()
-bindImageTag tag@(Tag {..}) img = modifyTVar' tImages (S.insert img)
-
--- | Removes the link between the tag and the image. Doesn't remove the tag if
--- no more image is pointing to it.
-unBindImageTag :: UserIndex -> Tag -> Image -> STM ()
-unBindImageTag ui@(UserIndex {..}) tag@(Tag {..}) img =
-    modifyTVar' tImages (S.delete img)
 
 -- | Returns the sets of images of the given tag and of its children.
 getTagImages :: Tag -> STM [Set Image]
@@ -139,16 +108,27 @@ getTagImages =
 addImage :: UserIndex -> Image -> STM ()
 addImage ui@(UserIndex {..}) img@(Image {..}) = do
     modifyTVar' uiImages (M.insert iHmac img)
-    mapM (\tag -> unBindImageTag ui tag img) iTags
+    mapM (bindImageTag img) iTags
 
 lookupImage :: UserIndex -> Hmac -> STM (Maybe Image)
 lookupImage UserIndex {..} hmac = M.lookup hmac <$> readTVar uiImages
 
--- | Unbinds the given image and all its tags from the given user.
+-- | Unbinds the given image from the given users and from all its tags.
 removeImage :: UserIndex -> Image -> STM ()
 removeImage ui@(UserIndex {..}) img@(Image {..}) = do
     modifyTVar' uiImages (M.delete iHmac)
-    mapM (\tag -> unBindImageTag ui tag img) iTags
+    mapM (unBindImageTag img) iTags
+
+-- | Creates a link between the tag and the image.
+bindImageTag :: Image -> Tag -> STM ()
+bindImageTag img tag@(Tag {..}) = modifyTVar' tImages (S.insert img)
+
+-- | Removes the link between the tag and the image. Removes the tag if no more
+-- image are pointing to it.
+unBindImageTag :: Tag -> Image -> STM ()
+unBindImageTag img tag@(Tag {..}) = do
+    modifyTVar' tImages (S.delete img)
+    removeTagIfOrphan tag
 
 -- Last called queue -----------------------------------------------------------
 
@@ -156,19 +136,15 @@ removeImage ui@(UserIndex {..}) img@(Image {..}) = do
 -- recently used queue.
 -- O(n).
 touchUserIndex :: ImageIndex -> UserIndex -> UTCTime -> STM ()
-touchUserIndex ImageIndex {..} username currentTime = do
-    mNode <- M.lookup username <$> readTVar (lcMap iiLastCalled)
-    case mNode of
-        Just node -> do
-            detatchNode lc node
-            attachNode  lc currentTime (updateNode node)
-        Nothing -> return ()
+touchUserIndex ImageIndex {..} ui@(UserIndex {..}) currentTime = do
+    detatchNode lc ui
+    attachNode  lc currentTime updateNode
   where
-    updateNode node@(LastCalledNode {..}) mPrev mNext = do
-        writeTVar lcnTime currentTime
-        writeTVar lcnPrev mPrev
-        writeTVar lcnNext mNext
-        return node
+    updateNode mPrev mNext = do
+        writeTVar uiLRCTime currentTime
+        writeTVar uiLRCPrev mPrev
+        writeTVar uiLRCNext mNext
+        return ui
 
 -- | Calls the given action with the previous and next nodes of the
 -- corresponding LRU queue position (determined by @currentTime@) in which the
@@ -188,7 +164,7 @@ attachNode ImageIndex {..} currentTime idxFct =
                 -- Inner/First node.
                 userIdx <- idxFct mPrev mNext
                 writeTVar nextRef          (Just userIdx)
-                writeTVar (uiLRCPrev next) (Just node)
+                writeTVar (uiLRCPrev next) (Just userIdx)
                 return userIdx
             Nothing -> do
                 -- Last node.
