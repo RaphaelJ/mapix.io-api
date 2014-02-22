@@ -1,5 +1,5 @@
 module Handler.Tag (
-      getTagsR , getTagR, deleteTagR
+      getTagsR , getTagR
     ) where
 
 import Import
@@ -9,7 +9,3 @@ getTagsR = undefined
 
 getTagR :: Text -> Handler RepJson
 getTagR = undefined
-
-deleteTagR :: Text -> Handler RepJson
-deleteTagR = undefined
-

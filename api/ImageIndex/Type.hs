@@ -3,6 +3,8 @@ module ImageIndex.Type where
 import Data.Int
 import Data.Map.Strict (Map)
 
+import Util.Hmac.Type
+
 data ImageIndex = ImageIndex {
       iiUsers    :: !(TVar (Map UserName UserIndex))
     -- Here we define a concurrent double linked list which implements a Least
@@ -33,13 +35,13 @@ data UserIndex = UserIndex {
 -- string). It contains only images which aren't registered to any tag.
 -- The SubTag is used for "real" tags of the hierarchy.
 
-type TagName = Text
+type TagPath = [Text]
 
-data Tag = RootTag | SubTag !TagName !Tag -- ^ Tag\'s name and sub-tag
+data Tag = RootTag | SubTag !Text !Tag -- ^ Tag\'s name and sub-tag
 
 data Tag = Tag {
       tType    :: !TagType
-    , tSubTags :: !(TVar (Map TagName Tag))
+    , tSubTags :: !(TVar (Map Text Tag))
     , tImages  :: !(TVar (Set Image))
     }
 

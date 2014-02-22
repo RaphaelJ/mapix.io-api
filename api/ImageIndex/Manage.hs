@@ -1,4 +1,5 @@
-module ImageIndex.Manage ()
+-- | Provides primitives to manage the in-memory transactionnal index.
+module ImageIndex.STM ()
     where
 
 import Control.Applicative
@@ -43,7 +44,7 @@ removeUserIndex ii@(ImageIndex {..}) ui@(UserIndex {..}) = do
 
 -- | Returns the last tag of the requested hierarchy of tags.
 -- Creates tags which don\'t exist on the path.
-getTag :: UserIndex -> [TagName] -> STM Tag
+getTag :: UserIndex -> TagPath -> STM Tag
 getTag UserIndex {..} tagPath = do
     readTVar uiRootTag >>= dfs tagPath
   where
@@ -61,7 +62,7 @@ getTag UserIndex {..} tagPath = do
 
 -- | Returns the last tag of the requested hierarchy of tags if the whole
 -- hierarchy exists.
-lookupTag :: UserIndex -> [TagName] -> STM (Maybe Tag)
+lookupTag :: UserIndex -> TagPath -> STM (Maybe Tag)
 lookupTag UserIndex {..} tagPath = do
     readTVar uiRootTag >>= dfs tagPath
   where
@@ -92,10 +93,10 @@ removeTagIfOrphan tag@(Tag (SubTag name parent) _ _) = do
                        if ret then allM xs
                               else return False
 
--- | Returns the sets of images of the given tag and of its children.
-getTagImages :: Tag -> STM [Set Image]
+-- | Returns the set of images of the given tag and of its children.
+getTagImages :: Tag -> STM (Set Image)
 getTagImages =
-    dfs []
+    S.unions . dfs []
   where
     dfs acc Tag {..} = do
         subs <- readTVar tSubTags
