@@ -25,26 +25,17 @@ UniqueHmac
     UniqueUniqueHmacValue       value
     deriving Show
 
-Histogram
-    hash                        ByteString -- SHA-1 of the histogram.
-    value                       (H.Histogram DIM5 Float)
-    count                       Int
-
-    UniqueHistogramHash         hash
-    deriving Show
-
 Image
     hmac                        Hmac
     owner                       UserId
     name                        Text Maybe
-    histogram                   HistogramId
+    histogram                   (H.Histogram DIM5 Float)
     deriving Show
 
 Tag
     owner                       UserId
     name                        Text
     parent                      TagId Maybe
-    count                       Int
     deriving Show
 
 ImageTag

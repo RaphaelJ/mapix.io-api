@@ -1,8 +1,10 @@
 /images                     ImagesR              GET POST
 /images/#Hmac               ImageR               GET PATCH DELETE
 
-/search-by-color            ColorSearchR         POST
-/search-by-image            ImageSearchR         POST
+/search-by-colors           SearchColorsR        POST
+/search-by-image            SearchImageR         POST
+
+/extract-colors             ExtractColorsR       POST
 
 /tags                       TagsR                GET
-/tags/#Text                 TagR                 GET DELETE
+/tags/#Text                 TagR                 GET
