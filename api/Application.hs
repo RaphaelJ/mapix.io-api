@@ -36,6 +36,8 @@ import Handler.Image
 import Handler.Search
 import Handler.Tag
 
+import ImageIndex (newIndex)
+
 mkYesodDispatch "App" resourcesApp
 
 -- This function allocates resources (such as a database connection pool),
@@ -74,8 +76,9 @@ makeFoundation conf = do
 
     key <- getEncryptionKey
 
+    ii <- newIndex
     let logger = Yesod.Core.Types.Logger loggerSet' getter
-        foundation = App conf p manager dbconf logger key
+        foundation = App conf p manager dbconf logger key ii
 
     -- Perform database migration using our application's logging settings.
     runLoggingT

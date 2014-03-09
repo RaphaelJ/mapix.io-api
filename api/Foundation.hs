@@ -9,6 +9,7 @@ import Yesod
 import Yesod.Core.Types (Logger)
 import Yesod.Default.Config
 
+import ImageIndex.Type (ImageIndex)
 import Settings (Extra (..))
 import qualified Settings
 import Settings.Development (development)
@@ -25,6 +26,7 @@ data App = App {
     , persistConfig :: Settings.PersistConf
     , appLogger     :: Logger
     , encryptKey    :: B.ByteString
+    , imageIndex    :: ImageIndex
     }
 
 mkYesodData "App" $(parseRoutesFile "config/routes")

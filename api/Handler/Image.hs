@@ -4,9 +4,18 @@ module Handler.Image (
 
 import Import
 
+import ImageIndex.Manage
+import Util.Mashape
+
 -- | Lists every image of the user.
 getImagesR :: Handler RepJson
-getImagesR = undefined
+getImagesR = do
+    user <- mhUser <$> getMashapeHeaders
+    ii <- imageIndex <$> getYesod
+    currentTime <- getCurrentTime
+    atomaticaly $ do
+        ui <- getUserIndex ii (userName user) currentTime
+        getTagImages (uiRootTag ui)
 
 -- | Registers a new image to the index.
 postImagesR :: Handler RepJson
