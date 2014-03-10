@@ -17,6 +17,13 @@ library
                      Handler.Image
                      Handler.Search
                      Handler.Tag
+                     ImageIndex.Histogram.Color
+                     ImageIndex.Histogram.Compress
+                     ImageIndex.Histogram.Serialize
+                     ImageIndex.Json
+                     ImageIndex.Manage
+                     ImageIndex.Tag
+                     ImageIndex.Type
                      Import
                      Model
                      Settings

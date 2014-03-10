@@ -13,7 +13,7 @@ getImagesR = do
     user <- mhUser <$> getMashapeHeaders
     ii <- imageIndex <$> getYesod
     currentTime <- getCurrentTime
-    atomaticaly $ do
+    atomically $ do
         ui <- getUserIndex ii (userName user) currentTime
         getTagImages (uiRootTag ui)
 

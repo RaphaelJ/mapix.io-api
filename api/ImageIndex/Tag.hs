@@ -20,6 +20,7 @@ data TagExpression = TagPath TagPath
                    | TagOr   TagExpression TagExpression
     deriving Show
 
+-- | Parses a conditionnal tag expression (i.e. @theme:beach || theme:ocean@).
 tagExpressionParser :: Parser TagExpression
 tagExpressionParser =
     spaces >> orExpr
@@ -42,10 +43,12 @@ tagExpressionParser =
         <|> between (char '(' >> spaces) (char ')' >> spaces) orExpr
         <|> (TagPath <$> (tagPathParser <* spaces))
 
+-- | Parses one tag expression (i.e. @theme:beach@).
 tagPathParser :: Parser TagPath
 tagPathParser = let tagName = T.pack <$> many1 (lower <|> digit)
                 in tagName `sepBy1` char ':'
 
+-- | Returs the full name of the tag (i.e. @theme:beach@).
 tagPath :: Tag -> TagPath
 tagPath =
     toStrict . toLazyText . go ""
@@ -56,6 +59,8 @@ tagPath =
 
 -- Search ----------------------------------------------------------------------
 
+-- | Searchs for images in the user\'s index which matche the guven tag
+-- expression.
 matchingImages :: UserIndex -> TagExpression -> STM (Set Image)
 matchingImages ui (TagPath tagPath)     = lookupTag ui tagPath
 matchingImages ui (TagNot  expr)        =

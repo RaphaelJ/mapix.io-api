@@ -1,23 +1,15 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
-module Util.Histogram (
+-- | Provides a run-length based compression algorithm to compress histograms.
+module ImageIndex.Histogram.Compress (
       CompressedHistogram (..), compress, decompress, size
     ) where
 
 import Prelude
-import qualified Data.Serialize as S
-import qualified Data.Text as T
-import qualified Data.Vector.Storable as SV
+import Data.Word
 import Data.Vector.Unboxed (Unbox)
 import qualified Data.Vector.Unboxed as UV
-import Data.Word
-import Database.Persist.Sql (PersistFieldSql (..))
 import Foreign.Storable (Storable (..))
 import Vision.Histogram (Histogram (..))
-import Vision.Primitive (Shape, Z (..), (:.) (..), DIM5, shapeLength)
-import Yesod
-
--- Histogram compression -------------------------------------------------------
+import Vision.Primitive (Shape, shapeLength)
 
 -- | Compressed 'Histogram' using a run-length based encoding.
 -- See <https://en.wikipedia.org/wiki/Run-length_encoding>.
@@ -61,37 +53,6 @@ size !(CompressedHistogram _ vec) =
   where
     symbol :: UV.Vector (Word8, a) -> a
     symbol _ = undefined
-
--- Histogram serialisation -----------------------------------------------------
-
-instance S.Serialize (Histogram DIM5 Float) where
-    put (Histogram (Z :. h :. s :. v :. y :. x) vec) = do
-        S.put h >> S.put s >> S.put v >> S.put y >> S.put x
-        SV.forM_ vec S.putFloat32le
-
-    get = do
-        h <- S.get
-        s <- S.get
-        v <- S.get
-        y <- S.get
-        x <- S.get
-
-        let !sh  = Z :. h :. s :. v :. y :. x
-            !len = shapeLength sh
-        vec <- SV.replicateM len S.getFloat32le
-
-        return $! Histogram sh vec
-
--- Histogram in database -------------------------------------------------------
-
-instance PersistField (Histogram DIM5 Float) where
-    toPersistValue = PersistByteString . S.encode
-
-    fromPersistValue ~(PersistByteString bs) =
-        either (Left . T.pack) Right $ S.decode bs
-
-instance PersistFieldSql (Histogram DIM5 Float) where
-    sqlType _ = SqlBlob
 
 int :: Integral a => a -> Int
 int = fromIntegral
