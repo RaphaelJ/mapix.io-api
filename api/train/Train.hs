@@ -85,6 +85,7 @@ main = do
             rgbs <- concat <$> mapM loadSet dirs
 
             let hsvs      = map (second ((shiftHue 8) . toHSV)) rgbs
+                hsvs'     = map (second (toHSV)) rgbs
                 shsvs     = map (second (resize 320)) hsvs
                 sshsvs     = map (second (resize 240)) hsvs
                 ssshsvs     = map (second (resize 160)) hsvs
@@ -96,6 +97,11 @@ main = do
                     evalTuple3 rseq rseq $
                         evalList $ evalTuple2 rseq rseq
                 results = [
+                      ("HSV 5D X² shifted", "blue"
+                      , testParams hsvs (configChi hsvHist5D))
+                    , ("HSV 5D X²", "red"
+                      , testParams hsvs' (configChi hsvHist5D))
+
 --                       ("RGB 3D X²", "green"
 --                       , testParams rgbs (configChi hist3D))
 -- 
@@ -105,32 +111,32 @@ main = do
 --                     , ("HSV 3D X²", "blue"
 --                       , testParams hsvs (configChi hsvHist3D))
 -- 
-                    {-,-} ("HSV 5D X²", "pink"
-                      , testParams hsvs (configChi hsvHist5D))
-
-                    , ("HSV 3D intersec", "grey"
-                      , testParams hsvs (configIntersec hsvHist3D))
-
-                    , ("HSV 5D intersec", "black"
-                      , testParams hsvs (configIntersec hsvHist5D))
-
-                    , ("HSV 3D intersec 320", "red"
-                      , testParams shsvs (configIntersec hsvHist3D))
-
-                    , ("HSV 5D intersec 320", "magenta"
-                      , testParams shsvs (configIntersec hsvHist5D))
-
-                    , ("HSV 3D intersec 240", "blue"
-                      , testParams sshsvs (configIntersec hsvHist3D))
-
-                    , ("HSV 5D intersec 240", "skyblue"
-                      , testParams sshsvs (configIntersec hsvHist5D))
-                      
-                    , ("HSV 3D intersec 160", "green"
-                      , testParams ssshsvs (configIntersec hsvHist3D))
-
-                    , ("HSV 5D intersec 160", "seagreen"
-                      , testParams ssshsvs (configIntersec hsvHist5D))
+--                     , ("HSV 5D X²", "pink"
+--                       , testParams hsvs (configChi hsvHist5D))
+-- 
+--                     , ("HSV 3D intersec", "grey"
+--                       , testParams hsvs (configIntersec hsvHist3D))
+-- 
+--                     , ("HSV 5D intersec", "black"
+--                       , testParams hsvs (configIntersec hsvHist5D))
+-- 
+--                     , ("HSV 3D intersec 320", "red"
+--                       , testParams shsvs (configIntersec hsvHist3D))
+-- 
+--                     , ("HSV 5D intersec 320", "magenta"
+--                       , testParams shsvs (configIntersec hsvHist5D))
+-- 
+--                     , ("HSV 3D intersec 240", "blue"
+--                       , testParams sshsvs (configIntersec hsvHist3D))
+-- 
+--                     , ("HSV 5D intersec 240", "skyblue"
+--                       , testParams sshsvs (configIntersec hsvHist5D))
+-- 
+--                     , ("HSV 3D intersec 160", "green"
+--                       , testParams ssshsvs (configIntersec hsvHist3D))
+-- 
+--                     , ("HSV 5D intersec 160", "seagreen"
+--                       , testParams ssshsvs (configIntersec hsvHist5D))
                     ] `using` strat
 
 --             printMatches (bestMatches hsvs (configChi hsvHist5D) 10)
@@ -174,7 +180,7 @@ main = do
     shiftHue nColors =
         let !padd = 180 `quot` (nColors * 2)
         in I.map (\pix@(HSVPixel {..}) ->
-                pix { hsvHue = word8 ((int hsvHue + padd) `mod` 180) }) 
+                pix { hsvHue = word8 ((int hsvHue + padd) `mod` 180) })
 
     printMatches matches = do
         putStrLn "<html>"

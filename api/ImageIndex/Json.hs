@@ -14,7 +14,7 @@ instance ToJSON Image where
               "id"     .= iHmac
             , "tags"   .= array [ tagPath tag
                                 | tag@(Tag (SubTag _ _) _ _) <- S.elems tags ]
-            , "colors" .= 
+            , "colors" .= histColor iHist
             ] ++ mName
       where
         mName | Just name <- iName = [ "name" .= name ]
