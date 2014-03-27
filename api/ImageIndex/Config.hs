@@ -1,9 +1,9 @@
-module ImageIndex.Histogram.Config (Config (..), defaultConfig) where
+module ImageIndex.Config (Config (..), defaultConfig) where
 
 import Vision.Primitive (Z (..), (:.) (..), DIM3, DIM5)
 
 data Config {
-      cHistSize    :: DIM3
+      cHistSize     :: DIM3
     , cHist2DShapeR :: DIM5
     }
 

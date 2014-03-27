@@ -95,8 +95,8 @@ removeTagIfOrphan tag@(Tag (SubTag name parent) _ _) = do
 
 -- | Returns the set of images of the given tag and of its children.
 getTagImages :: Tag -> STM (Set Image)
-getTagImages =
-    S.unions . dfs []
+getTagImages tag =
+    S.unions <$> dfs [] tag
   where
     dfs acc Tag {..} = do
         subs <- readTVar tSubTags
