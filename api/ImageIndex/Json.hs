@@ -19,3 +19,11 @@ instance ToJSON Image where
       where
         mName | Just name <- iName = [ "name" .= name ]
               | otherwise          = []
+
+instance ToJSON Color where
+    toJSON (Color rgb@(RGBPixel r g b) w) =
+        object $ [
+              "hex"    .= rgb2Hex rgb
+            , "rgb"    .= array [r, g, b]
+            , "weight" .= w
+            ]

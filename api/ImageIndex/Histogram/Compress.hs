@@ -40,7 +40,7 @@ decompress :: (Shape sh, Storable a, Unbox a, Eq a)
 decompress !(CompressedHistogram sh vec) =
     Histogram sh (SV.unfoldrN (shapeLength sh) step (0, vec))
   where
-    step (i, vec') = let (!n, a) = UV.head vec'
+    step (i, vec') = let (!n, !a) = UV.head vec'
                      in if n > i then Just (a, (i + 1, vec'))
                                  else step (0, UV.tail vec')
 {-# INLINE decompress #-}
