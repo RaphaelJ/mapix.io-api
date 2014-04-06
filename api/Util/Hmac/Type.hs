@@ -13,7 +13,8 @@ import Yesod
 -- | HMACs are unique identifiers used for files, uploads, comments and archive
 -- files.
 newtype Hmac = Hmac Text
-    deriving (Eq, IsString, PersistField, PersistFieldSql, PathPiece, ToJSON)
+    deriving ( Eq, Ord, IsString, PersistField, PersistFieldSql, PathPiece
+             , ToJSON)
 
 instance Show Hmac where
     show (Hmac txt) = show txt

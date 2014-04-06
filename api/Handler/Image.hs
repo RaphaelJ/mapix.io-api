@@ -8,7 +8,7 @@ import ImageIndex.Manage
 import Util.Mashape
 
 -- | Lists every image of the user.
-getImagesR :: Handler RepJson
+getImagesR :: Handler Value
 getImagesR = do
     user <- mhUser <$> getMashapeHeaders
     ii <- imageIndex <$> getYesod
@@ -17,15 +17,17 @@ getImagesR = do
         ui <- getUserIndex ii (userName user) currentTime
         getTagImages (uiRootTag ui)
 
+    returnJson 
+
 -- | Registers a new image to the index.
-postImagesR :: Handler RepJson
+postImagesR :: Handler Value
 postImagesR = undefined
 
-getImageR :: Hmac -> Handler RepJson
+getImageR :: Hmac -> Handler Value
 getImageR = undefined
 
-patchImageR :: Hmac -> Handler RepJson
+patchImageR :: Hmac -> Handler Value
 patchImageR = undefined
 
-deleteImageR :: Hmac -> Handler RepJson
+deleteImageR :: Hmac -> Handler Value
 deleteImageR = undefined

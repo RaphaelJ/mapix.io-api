@@ -4,8 +4,8 @@ module Handler.Search (
 
 import Import
 
-postColorSearchR :: Handler RepJson
+postColorSearchR :: Handler Value
 postColorSearchR = undefined
 
-postImageSearchR :: Handler RepJson
+postImageSearchR :: Handler Value
 postImageSearchR = undefined

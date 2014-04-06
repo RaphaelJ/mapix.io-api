@@ -6,20 +6,21 @@ module ImageIndex.Tag (
 import Prelude
 import Control.Applicative ((<$>), (<*))
 import Data.Maybe
+import Data.Monoid ((<>))
 import qualified Data.Set as S
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Lazy (toStrict)
-import Data.Text.Lazy.Builder (toLazyText)
+import Data.Text.Lazy.Builder (fromText, toLazyText)
 import Text.Parsec
 import Text.Parsec.Text
 
-import ImageIndex.Manage
+-- import ImageIndex.Manage
 import ImageIndex.Type
 
+-- | Name of the GET variable which is used in queries to filter images by tag.
 tagGetParam :: Text
 tagGetParam = "tag"
-
-lookupGetParams tagExprGetParam
 
 -- Expressions -----------------------------------------------------------------
 
@@ -58,18 +59,19 @@ tagPathParser = let tagName = T.pack <$> many1 (lower <|> digit)
                 in tagName `sepBy1` char ':'
 
 -- | Returs the full name of the tag (i.e. @theme:beach@).
-tagPath :: Tag -> TagPath
+tagPath :: Tag -> Text
 tagPath =
     toStrict . toLazyText . go ""
   where
     go acc (Tag RootTag              _ _) = acc
     go acc (Tag (SubTag name parent) _ _) =
-        go (singleton ':' <> fromText name <> acc) parent
+        go (":" <> fromText name <> acc) parent
 
 -- Search ----------------------------------------------------------------------
 
--- | Searchs for images in the user\'s index which matche the guven tag
--- expression.
+-- | Searchs for images in the user\'s index which matche the given tag
+-- expression
+-- Returns an empty set if the tag doesn't exist.
 matchingImages :: UserIndex -> TagExpression -> STM (Set Image)
 matchingImages ui (TagPath tagPath)     = do
     mTag <- lookupTag ui tagPath
@@ -81,3 +83,13 @@ matchingImages ui (TagAnd  expr1 expr2) =
     S.intersection <$> matchingImages ui expr1 <*> matchingImages ui expr2
 matchingImages ui (TagOr  expr1 expr2) =
     S.union <$> matchingImages ui expr1 <*> matchingImages ui expr2
+
+getTagExpression :: Handler (Maybe TagExpression)
+getTagExpression = do
+    mExpr <- lookupGetParams tagExprGetParam
+    case mExpr of Just expr -> parseExpr expr
+                  Nothing   -> Nothing
+  where
+    parseExpr expr = case parse tagExpressionParser "" expr of
+                        Left  err  ->
+                        Right expr -> Just expr
