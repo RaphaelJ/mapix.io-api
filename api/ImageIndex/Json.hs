@@ -22,8 +22,6 @@ instance ToJSON Image where
 
 instance ToJSON Color where
     toJSON (Color rgb@(RGBPixel r g b) w) =
-        object [
-              "hex"    .= rgb2Hex rgb
-            , "rgb"    .= array [r, g, b]
-            , "weight" .= w
-            ]
+        object [ "hex"    .= rgb2Hex rgb
+               , "rgb"    .= array [r, g, b]
+               , "weight" .= w ]
