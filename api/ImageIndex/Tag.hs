@@ -1,6 +1,8 @@
 -- | Provides functions to interpret tag expressions.
 module ImageIndex.Tag (
-      tagGetParam, tagExpressionParser, tagPathParser, tagPath
+      TagExpression (..)
+    , tagGetParam, tagExpressionParser, tagPathParser , tagPath
+    , getTagExpressionn, getMatchingImages
     ) where
 
 import Prelude
@@ -15,7 +17,7 @@ import Data.Text.Lazy.Builder (fromText, toLazyText)
 import Text.Parsec
 import Text.Parsec.Text
 
--- import ImageIndex.Manage
+import ImageIndex.Manage (getTagImages)
 import ImageIndex.Type
 
 -- | Name of the GET variable which is used in queries to filter images by tag.
@@ -69,21 +71,9 @@ tagPath =
 
 -- Search ----------------------------------------------------------------------
 
--- | Searchs for images in the user\'s index which matche the given tag
--- expression
--- Returns an empty set if the tag doesn't exist.
-matchingImages :: UserIndex -> TagExpression -> STM (Set Image)
-matchingImages ui (TagPath tagPath)     = do
-    mTag <- lookupTag ui tagPath
-    case mTag of Just tag -> getTagImages tag
-                 Nothing  -> return S.empty
-matchingImages ui (TagNot  expr)        =
-    S.difference <$> lookupTag ui [] <*> matchingImages ui expr
-matchingImages ui (TagAnd  expr1 expr2) =
-    S.intersection <$> matchingImages ui expr1 <*> matchingImages ui expr2
-matchingImages ui (TagOr  expr1 expr2) =
-    S.union <$> matchingImages ui expr1 <*> matchingImages ui expr2
-
+-- | Tries to parse the tag GET parameter. Returns 'Nothing' if no tag parameter
+-- has been given. Fails with an API error if the tag expression failed to be
+-- parsed.
 getTagExpression :: Handler (Maybe TagExpression)
 getTagExpression = do
     mExpr <- lookupGetParams tagExprGetParam
@@ -91,5 +81,22 @@ getTagExpression = do
                   Nothing   -> Nothing
   where
     parseExpr expr = case parse tagExpressionParser "" expr of
-                        Left  err  ->
+                        Left  err  -> apiFail (InvalidTagExpression err)
                         Right expr -> Just expr
+
+-- | Searchs for images in the user\'s index which match the given tag
+-- expression. If no 'TagExpression' is given, return the 'RootTag' images.
+-- Returns an empty set if the tag doesn't exist.
+getMatchingImages :: UserIndex -> Maybe TagExpression -> STM (Set Image)
+getMatchingImages ui Nothing     = getTagImages (uiRootTag ui)
+getMatchingImages ui (Just expr) =
+    go expr
+  where
+    go (TagPath path) = do
+        mTag <- lookupTag ui tagPath
+        case mTag of Just tag -> getTagImages tag
+                     Nothing  -> return S.empty
+    go (TagNot expr1) = S.difference <*> getTagImages (uiRootTag ui)
+                                     <*> go expr1
+    go (TagAnd expr1 expr2) = S.intersection <$> go expr1 <*> go expr2
+    go (TagOr  expr1 expr2) = S.union        <$> go expr1 <*> go expr2

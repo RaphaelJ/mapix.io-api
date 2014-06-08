@@ -3,6 +3,7 @@ module Handler.Image (
     ) where
 
 import Import
+import Data.Time.Clock (getCurrentTime)
 
 import ImageIndex.Manage
 import Util.Mashape
@@ -10,12 +11,14 @@ import Util.Mashape
 -- | Lists every image of the user.
 getImagesR :: Handler Value
 getImagesR = do
-    user <- mhUser <$> getMashapeHeaders
-    ii <- imageIndex <$> getYesod
-    currentTime <- getCurrentTime
-    atomically $ do
+    user        <- mhUser <$> getMashapeHeaders
+    ii          <- imageIndex <$> getYesod
+    currentTime <- lift getCurrentTime
+    tagExpr     <- getTagExpression
+
+    img <- atomically $ do
         ui <- getUserIndex ii (userName user) currentTime
-        getTagImages (uiRootTag ui)
+        getMatchingImages ui tagExpr
 
     returnJson 
 

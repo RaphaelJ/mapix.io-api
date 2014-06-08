@@ -44,12 +44,13 @@ data UserIndex = UserIndex {
 
 type TagPath = [Text]
 
-data TagType = RootTag | SubTag !Text !Tag -- ^ Tag\'s name and sub-tag
+data TagType = RootTag | SubTag !Text !Tag -- ^ Tag\'s name and sub-tag.
     deriving (Eq, Ord)
 
 data Tag = Tag {
       tType    :: !TagType
     , tSubTags :: !(TVar (Map Text Tag))
+    -- | Only contains images which are not in sub-tags.
     , tImages  :: !(TVar (Set Image))
     }
 
@@ -66,7 +67,5 @@ data Image = Image {
     , iHist :: !Histogram
     } deriving (Eq, Ord)
 
-data Histogram = Histogram {
-      h5D    :: !(H.Histogram DIM5 Float)
-    , h3D    :: !(H.Histogram DIM3 Float)
-    } deriving (Eq, Ord)
+newtype Histogram = Histogram !(H.Histogram DIM3 Float)
+    deriving (Eq, Ord)

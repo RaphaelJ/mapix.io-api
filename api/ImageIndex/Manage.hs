@@ -10,7 +10,7 @@ import Data.Time.Clock (UTCTime, getCurrentTime)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
-newIndex :: IO ImageIndex
+  :: IO ImageIndex
 newIndex = ImageIndex <$> newTVarIO M.empty <*> newTVarIO Nothing
                       <*> newTVarIO Nothing
 
@@ -20,12 +20,12 @@ newIndex = ImageIndex <$> newTVarIO M.empty <*> newTVarIO Nothing
 -- If a such entry doesn\'t exist, creates a new one.
 getUserIndex :: ImageIndex -> UserName -> UTCTime -> STM UserIndex
 getUserIndex ii@(ImageIndex {..}) username currentTime = do
-    iiUserVal <- readTVar iiUsers
-    case M.lookup username iiUserVal of
+    iiUsersVal <- readTVar iiUsers
+    case M.lookup username iiUsersVal of
         Just userIdx -> return userIdx
         Nothing      -> do
             userIdx <- attachNode ii currentTime newUserIndex
-            writeTVar iiUsers (M.insert username userIdx iiUserVal)
+            writeTVar iiUsers (M.insert username userIdx iiUsersVal)
 
             return userIdx
 
@@ -50,13 +50,13 @@ getTag UserIndex {..} tagPath = do
   where
     dfs []       tag               = return tag
     dfs (t : ts) parent@(Tag {..}) = do
-        subTags <- readTVar tSubTags
-        tag <- case M.lookup t subTags of
+        subTagsVal <- readTVar tSubTags
+        tag <- case M.lookup t subTagsVal of
             Just tag -> return tag
             Nothing  -> do -- Sub tag doesn't exist.
-                tag <- Tag (SubTag tagName parent) <$> newTVar M.empty
-                                                   <*> newTVar S.empty
-                writeTVar tSubTags (M.insert TagName)
+                tag <- Tag (SubTag t parent) <$> newTVar M.empty
+                                             <*> newTVar S.empty
+                writeTVar tSubTags (M.insert t tag subTagsVal)
                 return tag
         dfs ts tag
 
@@ -66,10 +66,10 @@ lookupTag :: UserIndex -> TagPath -> STM (Maybe Tag)
 lookupTag UserIndex {..} tagPath = do
     readTVar uiRootTag >>= dfs tagPath
   where
-    dfs []       tag               = return $! Just tag
+    dfs []       tag               = return $ Just tag
     dfs (t : ts) parent@(Tag {..}) =
-        subTags <- readTVar tSubTags
-        case M.lookup t subTags of
+        subTagsVal <- readTVar tSubTags
+        case M.lookup t subTagsVal of
             Just tag -> dfs ts tag
             Nothing  -> return Nothing
 
@@ -130,6 +130,10 @@ unBindImageTag :: Tag -> Image -> STM ()
 unBindImageTag img tag@(Tag {..}) = do
     modifyTVar' tImages (S.delete img)
     removeTagIfOrphan tag
+
+-- | Returns the set of images of the user.
+getImages :: UserIndex -> STM (Set Image)
+getImages = getTagImages . uiRootTag
 
 -- Last called queue -----------------------------------------------------------
 
