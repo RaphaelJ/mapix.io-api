@@ -100,3 +100,7 @@ getMatchingImages ui (Just expr) =
                                      <*> go expr1
     go (TagAnd expr1 expr2) = S.intersection <$> go expr1 <*> go expr2
     go (TagOr  expr1 expr2) = S.union        <$> go expr1 <*> go expr2
+
+-- New image -------------------------------------------------------------------
+
+
