@@ -1,14 +1,16 @@
 -- | 
 module ImageIndex.Histogram.Compute (
-      preprocessImage
+      preprocessImage, alphaMask, backgroundMask
     )
 
 import Control.Monad.ST
+import Data.List
 
 import ImageIndex.Config (cMaxImageSize, defaultConfig)
 
 import Vision.Image (
-      GreyImage, GreyPixel, MutableManifest, SeparableFilter, StorageImage (..)
+      GreyImage, GreyPixel, MutableManifest, RGBAPixel, SeparableFilter
+    , StorageImage (..)
     )
 import qualified Vision.Image as I
 import Vision.Primitive (ix2)
@@ -35,11 +37,10 @@ preprocessImage !ignoreBackground !ignoreSkin !io =
 
     !maxSize = cMaxImageSize defaultConfig
 
-
+alphaMask = I.map (\!(RGBAPixel _ _ _ a) -> a /= maxBound)
 
 backgroundMask img =
-    I.fromFunction size $ \pt ->
-        (flooded `index` pt) /= backgroundVal
+    I.map (/= backgroundVal) flooded
   where
     blurRadius, sobelRadius, cannyLow, cannyHigh :: Int
     blurRadius  = 3
@@ -73,4 +74,15 @@ backgroundMask img =
     blur :: SeparableFilter GreyPixel Float GreyPixel
     !blur = I.gaussianBlur blurRadius Nothing
 
-    size@(Z :. h :. w) = I.shape closed
+    !(Z :. h :. w) = I.shape img
+
+histogramAverage hists =
+    let hists' = map (flip H.normalize 1.0) hists
+    in normalize' $ foldl1 addHists hists'
+  where
+    normalize' = flip H.normalize 1.0
+
+    addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2) 
+        | sh1 /= sh2 = error "Histograms are not of equal size."
+        | otherwise  = let vecSum = V.zipWith (+) vec1 vec2
+                       in Histogram sh1 vecSum

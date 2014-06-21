@@ -1,4 +1,4 @@
-module Histogram.Color (
+module ImageIndex.Histogram.Color (
       Color (..), shiftHue, histColors, histBinColor, rgb2Hex
     ) where
 
@@ -21,13 +21,19 @@ data Color w = Color {
     , cWeight :: !w
     } deriving Show
 
+shiftPadd :: Int
+shiftPadd =
+    
+  where
+    !(Z :. nHues :. _) = cHistSize defaultConfig
+
 -- | Fixs the image color before being mapped to an histogram.
 -- As the hue is divided in the histogram in several bins, we need to shift it
 -- so a perceived color (such as red) fits in the center of a bin.
 shiftHue :: HSVPixel -> HSVPixel
 shiftHue pix@{..} = pix {
-      hsvHue = word8 ((int hsvHue + shiftPadd) `mod` maxHue)
-    })
+      hsvHue = word8 ((int hsvHue + shiftPadd) `mod` 180)
+    }
 {-# INLINE shiftHue #-}
 
 -- | Returns the primary RGB colors of the histogram, sorted by their decreasing
