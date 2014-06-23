@@ -51,8 +51,8 @@ postImagesR = do
                             <*> ireq checkBoxField "ignore_skin"
 
     addImage NewImage {..} = do
-        bs <- runResourceT $ fileSourceRaw niFile $$ sinkLbs
-        eImg <- I.loadBS bs Nothing
+        bs   <- runResourceT $ fileSourceRaw niFile $$ sinkLbs
+        eImg <- I.loadBS Nothing bs
 
         case eImg of
             Left  _   -> apiFail invalidImageException

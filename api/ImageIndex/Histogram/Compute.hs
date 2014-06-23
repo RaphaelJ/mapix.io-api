@@ -9,28 +9,29 @@ import Data.List
 import ImageIndex.Config (cMaxImageSize, defaultConfig)
 
 import Vision.Image (
-      GreyImage, GreyPixel, MutableManifest, RGBAPixel, SeparableFilter
-    , StorageImage (..)
+      GreyImage, GreyPixel, MaskedDelayed, MutableManifest, RGBAPixel
+    , SeparableFilter, StorageImage (..)
     )
 import qualified Vision.Image as I
 import Vision.Primitive (ix2)
 
-preprocessImage :: Bool -> Bool -> StorageImage ->
-preprocessImage !ignoreBackground !ignoreSkin !io =
-
+preprocess :: Bool -> Bool -> StorageImage -> MaskedDelayed RGBPixel
+preprocess !ignoreBackground !ignoreSkin !io =
+    
   where
-    -- Resizes the image if larger than the maximum image size.
-    !resized
-        | h <= maxSize && w <= maxSize = io
-        | otherwise                    =
-            let !ratio   = max h w % maxSize
-                !newSize = ix2 (round $ fromIntegral h * ratio)
-                               (round $ fromIntegral w * ratio)
-                resize !img = I.resize img Bilinear newSize
-            in case io of GreyStorage grey -> resize
-                          RGBAStorage rgba -> grey
-                          RGBStorage  rgb  -> rgb
 
+-- | Resizes the image if larger than the maximum image size.
+resize :: StorageImage -> StorageImage
+resize !io | h <= maxSize && w <= maxSize = io
+                | otherwise                    =
+                    let !ratio   = max h w % maxSize
+                        !newSize = ix2 (round $ fromIntegral h * ratio)
+                                       (round $ fromIntegral w * ratio)
+                        resize !img = I.resize img Bilinear newSize
+                    in case io of GreyStorage grey -> resize grey
+                                  RGBAStorage rgba -> resize rgba
+                                  RGBStorage  rgb  -> resize rgb
+  where
     !(Z :. h :. w) = case io of GreyStorage grey -> I.shape grey
                                 RGBAStorage rgba -> I.shape rgba
                                 RGBStorage  rgb  -> I.shape rgb
@@ -77,10 +78,10 @@ backgroundMask img =
     !(Z :. h :. w) = I.shape img
 
 histogramAverage hists =
-    let hists' = map (flip H.normalize 1.0) hists
+    let hists' = map normalize' hists
     in normalize' $ foldl1 addHists hists'
   where
-    normalize' = flip H.normalize 1.0
+    normalize' = H.normalize 1.0
 
     addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2) 
         | sh1 /= sh2 = error "Histograms are not of equal size."

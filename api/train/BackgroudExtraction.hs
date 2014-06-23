@@ -20,10 +20,8 @@ main = do
         gaussianBlur :: I.SeparableFilter I.GreyPixel Float I.GreyPixel
         !gaussianBlur = I.gaussianBlur (read g) Nothing
         !blurred = I.apply grey gaussianBlur
-        !edges = canny blurred (read r) (read low) (read high)
+        !edges = canny (read r) (read low) (read high) blurred
         !closed = closure 2 edges
-
-        size@(Z :. h :. w) = I.shape closed
 
         !flooded = I.create $ do
                 mEdges <- I.thaw closed :: ST s (I.MutableManifest I.GreyPixel s)
