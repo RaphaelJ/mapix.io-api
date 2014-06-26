@@ -1,5 +1,5 @@
 -- | Provides primitives to manage the in-memory transactionnal index.
-module ImageIndex.STM ()
+module ImageIndex.Manage ()
     where
 
 import Control.Applicative
@@ -10,7 +10,7 @@ import Data.Time.Clock (UTCTime, getCurrentTime)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
-  :: IO ImageIndex
+newIndex :: IO ImageIndex
 newIndex = ImageIndex <$> newTVarIO M.empty <*> newTVarIO Nothing
                       <*> newTVarIO Nothing
 

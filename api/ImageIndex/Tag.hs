@@ -62,7 +62,7 @@ tagPathParser = let tagName = T.pack <$> many1 (lower <|> digit)
 
 tagListParser :: Parser [TagPath]
 tagListParser =
-    let separator = spaces >= 
+    let separator = spaces >> char ',' >> spaces
     in spaces >> (tagPathParser `sepBy` separator)
 
 -- | Returs the full name of the tag (i.e. @theme:beach@).

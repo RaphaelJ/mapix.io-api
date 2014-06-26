@@ -4,7 +4,7 @@ import qualified Data.Text as T
 import Network.HTTP.Types.Status (Status, badRequest400)
 import Text.Parsec (ParseError)
 
-data APIError = EmptyFormException
+data APIError = BadRequest [Text]
               | InvalidFormException [Text]
               | InvalidTagExpression ParseError
     deriving (Show, Enum)

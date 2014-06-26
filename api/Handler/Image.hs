@@ -42,7 +42,8 @@ postImagesR = do
     case result of
         FormMissing      -> apiFail EmptyFormException
         FormFailure errs -> apiFail (InvalidFormException errs)
-        FormSuccess img  -> addImage img
+        FormSuccess img | validTags img -> addImage img
+                        | otherwise     -> apiFail (InvalidArgumentException errs)
   where
     newImageForm = NewImage <$> ireq fileField     "file"
                             <*> iopt textField     "name"
@@ -57,12 +58,12 @@ postImagesR = do
         case eImg of
             Left  _   -> apiFail invalidImageException
             Right img ->
-                user        <- mhUser <$> getMashapeHeaders
+                username    <- mhUser <$> getMashapeHeaders
                 ii          <- imageIndex <$> getYesod
                 currentTime <- lift getCurrentTime
 
                 img <- atomically $ do
-                    ui <- getUserIndex ii (userName user) currentTime
+                    ui <- getUserIndex ii username currentTime
                     getMatchingImages ui tagExpr
 
                 sendResponseStatus (created201) (returnJson img)
