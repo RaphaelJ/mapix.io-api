@@ -40,10 +40,11 @@ postImagesR = do
     result <- runInputPostResult newImageForm
 
     case result of
-        FormMissing      -> apiFail EmptyFormException
-        FormFailure errs -> apiFail (InvalidFormException errs)
-        FormSuccess img | validTags img -> addImage img
-                        | otherwise     -> apiFail (InvalidArgumentException errs)
+        FormMissing      -> apiFail (BadRequest ["Missing request arguments"])
+        FormFailure errs -> apiFail (BadRequest errs)
+        FormSuccess img
+            | validTags img -> addImage img
+            | otherwise     -> apiFail (BadRequest ["Invalid tag list"])
   where
     newImageForm = NewImage <$> ireq fileField     "file"
                             <*> iopt textField     "name"

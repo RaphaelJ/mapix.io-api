@@ -5,27 +5,18 @@ import Network.HTTP.Types.Status (Status, badRequest400)
 import Text.Parsec (ParseError)
 
 data APIError = BadRequest [Text]
-              | InvalidFormException [Text]
-              | InvalidTagExpression ParseError
     deriving (Show, Enum)
 
 errorCode :: APIError -> Int
 errorCode = fromEnum
 
 errorMessage :: APIError -> Maybe Text
-errorMessage EmptyFormException              =
-    Just "You submitted an empty form."
-errorMessage (MissingFormException errs)     =
+errorMessage (BadRequest errs) =
     let errsTxt = T.intercalate "," errs
-    in Just $! "The you submitted incorrectly formatted data: " <> errsTxt
-errorMessage (InvalidTagExpression err) =
-    let errTxt = T.pack $ show parseErr
-    in Just $! "Error when parsing the tag expression: " <> errTxt
+    in Just $! "The you submitted an inccorect request: " <> errsTxt
 
 errorHttpStatus :: APIError -> Status
-errorHttpStatus EmptyFormException       = badRequest400
-errorHttpStatus InvalidTagExpression     = badRequest400
-errorHttpStatus (InvalidTagExpression _) = badRequest400
+errorHttpStatus (BadRequest _) = badRequest400
 
 -- | Bypass remaining handler code and output the given error as JSON.
 apiFail :: APIError -> Handler a
