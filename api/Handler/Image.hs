@@ -42,9 +42,11 @@ postImagesR = do
     case result of
         FormMissing      -> apiFail (BadRequest ["Missing request arguments"])
         FormFailure errs -> apiFail (BadRequest errs)
-        FormSuccess img
-            | validTags img -> addImage img
-            | otherwise     -> apiFail (BadRequest ["Invalid tag list"])
+        FormSuccess img  ->
+            case parseTagList (niTags img) of
+                Right tags -> addImage (niFile img) (niName img) tags
+                                       (niIgnoreBack img) (niIgnoreSkin img)
+                Left  err  -> apiFail (BadRequest ["Invalid tag list"])
   where
     newImageForm = NewImage <$> ireq fileField     "file"
                             <*> iopt textField     "name"
@@ -52,12 +54,15 @@ postImagesR = do
                             <*> ireq checkBoxField "ignore_background"
                             <*> ireq checkBoxField "ignore_skin"
 
-    addImage NewImage {..} = do
-        bs   <- runResourceT $ fileSourceRaw niFile $$ sinkLbs
+    parseTagList (Just tagList) = parse tagListParser "tag list" tagList
+    parseTagList Nothing        = []
+
+    addImage file name tags ignoreBack ignoreSkin = do
+        bs   <- runResourceT $ fileSourceRaw file $$ sinkLbs
         eImg <- I.loadBS Nothing bs
 
         case eImg of
-            Left  _   -> apiFail invalidImageException
+            Left  _   -> BadRequest ["Unable to read the image format"]
             Right img ->
                 username    <- mhUser <$> getMashapeHeaders
                 ii          <- imageIndex <$> getYesod
@@ -65,12 +70,8 @@ postImagesR = do
 
                 img <- atomically $ do
                     ui <- getUserIndex ii username currentTime
-                    getMatchingImages ui tagExpr
 
                 sendResponseStatus (created201) (returnJson img)
-
-    invalidImageException =
-        InvalidFormException ["Unable to read the image format"]
 
 getImageR :: Hmac -> Handler Value
 getImageR = undefined

@@ -60,6 +60,7 @@ tagPathParser :: Parser TagPath
 tagPathParser = let tagName = T.pack <$> many1 (lower <|> digit)
                 in tagName `sepBy1` char ':'
 
+-- | Parses a list of tags separated by commas.
 tagListParser :: Parser [TagPath]
 tagListParser =
     let separator = spaces >> char ',' >> spaces
