@@ -2,6 +2,7 @@
 module ImageIndex.Json () where
 
 import Prelude
+import Control.Monad
 import qualified Data.Set as S
 import Yesod.Core.Json
 
@@ -20,8 +21,15 @@ instance ToJSON Image where
         mName | Just name <- iName = [ "name" .= name ]
               | otherwise          = []
 
-instance ToJSON Color where
+instance ToJSON (Color w) where
     toJSON (Color rgb@(RGBPixel r g b) w) =
         object [ "hex"    .= rgb2Hex rgb
                , "rgb"    .= array [r, g, b]
                , "weight" .= w ]
+
+instance FromJSON w => FromJSON (Color w) where
+    fromJSON (Object o) = do
+        color <-     (o .: "rgb")
+                 <|> (o .: "hex")
+        Color color <$> fromJSON
+    fromJSON _          = mzero

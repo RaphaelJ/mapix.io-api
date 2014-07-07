@@ -4,8 +4,11 @@ module Handler.Search (
 
 import Import
 
-data ColorSearch = ColorSearch {
-      csColors :: Text
+import Control.Monad
+import qualified Data.Vector as V
+
+data ColorSearch w = ColorSearch {
+      csColors :: [Color w]
     , csFilter :: Maybe Text
     , csCount  :: Maybe Int
     }
@@ -31,11 +34,13 @@ postColorSearchR = do
           fieldParse = \vals files ->
                 case fieldParse textField vals files of
                     Right expr ->
-                        case decode' expr of
-                            Just    -> Right 
-                            Nothing -> Left "Invalid color expression"
+                        case eitherDecode' expr of
+                            Just a   -> Right 
+                            Nothing  -> Left "Invalid color expression"
                     Left err   -> Left err
         }
+        
+    arr <- json' 
 
 postImageSearchR :: Handler Value
 postImageSearchR = undefined
