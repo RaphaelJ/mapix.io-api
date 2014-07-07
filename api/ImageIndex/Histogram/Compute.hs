@@ -1,44 +1,67 @@
 -- | 
 module ImageIndex.Histogram.Compute (
-      preprocessImage, alphaMask, backgroundMask
+      compute, histogramsAverage
     )
 
 import Control.Monad.ST
 import Data.List
+import Data.Maybe
 
 import ImageIndex.Config (cMaxImageSize, defaultConfig)
 
+import qualified Vision.Histogram as H
 import Vision.Image (
-      GreyImage, GreyPixel, MaskedDelayed, MutableManifest, RGBAPixel
+      GreyImage, GreyPixel, MaskedDelayed, MutableManifest, RGBImage, RGBAPixel
     , SeparableFilter, StorageImage (..)
     )
 import qualified Vision.Image as I
 import Vision.Primitive (ix2)
 
-preprocess :: Bool -> Bool -> StorageImage -> MaskedDelayed RGBPixel
-preprocess !ignoreBackground !ignoreSkin !io =
-    
+compute :: Bool -> Bool -> StorageImage -> Histogram
+compute !ignoreBack !ignoreSkin !io =
+    if null masks
+       then calcHist rgb
+       else let !globMask  = foldl1' andMasks masks
+                !maskedRgb =
+                    I.fromFunction (I.shape rgb) $ \pt ->
+                        if globMask `I.index` pt then Just $! rgb `I.index` pt
+                                                 else Nothing
+            in calcHist maskedRgb
   where
-
--- | Resizes the image if larger than the maximum image size.
-resize :: StorageImage -> StorageImage
-resize !io | h <= maxSize && w <= maxSize = io
-                | otherwise                    =
-                    let !ratio   = max h w % maxSize
-                        !newSize = ix2 (round $ fromIntegral h * ratio)
-                                       (round $ fromIntegral w * ratio)
-                        resize !img = I.resize img Bilinear newSize
-                    in case io of GreyStorage grey -> resize grey
-                                  RGBAStorage rgba -> resize rgba
-                                  RGBStorage  rgb  -> resize rgb
-  where
-    !(Z :. h :. w) = case io of GreyStorage grey -> I.shape grey
-                                RGBAStorage rgba -> I.shape rgba
-                                RGBStorage  rgb  -> I.shape rgb
-
     !maxSize = cMaxImageSize defaultConfig
 
-alphaMask = I.map (\!(RGBAPixel _ _ _ a) -> a /= maxBound)
+    !(Z :. h :. w) = case io of GreyStorage img -> I.shape img
+                                RGBAStorage img -> I.shape img
+                                RGBStorage  img -> I.shape img
+
+    -- Resized original image if larger than the maximum image size.
+    !io' | h <= maxSize && w <= maxSize = io
+         | otherwise                    =
+            let !ratio   = max h w % maxSize
+                !newSize = ix2 (round $ fromIntegral h * ratio)
+                               (round $ fromIntegral w * ratio)
+                resize = I.resize I.Bilinear newSize
+            in case io of GreyStorage img -> resize img
+                          RGBAStorage img -> resize img
+                          RGBStorage  img -> resize img
+
+    rbg :: RGBImage
+    !rbg = I.convert io'
+
+    masks = catMaybes [
+          case io' of RGBAStorage rgba -> Just $! alphaMask rgba
+                      _                -> Nothing
+        , if ignoreBack then Just $! backgroundMask io'
+                        else Nothing
+        ]
+
+    calcHist = Histogram . I.histogram (Just (cHistSize defaultConfig))
+
+    -- Does an && between two masks boolean pixels.
+    andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
+                            m1 `I.index` pt && m2 `I.index` pt
+
+alphaMask = I.map (\!(RGBAPixel _ _ _ a) -> a == maxBound)
 
 backgroundMask img =
     I.map (/= backgroundVal) flooded
@@ -77,7 +100,7 @@ backgroundMask img =
 
     !(Z :. h :. w) = I.shape img
 
-histogramAverage hists =
+histogramsAverage hists =
     let hists' = map normalize' hists
     in normalize' $ foldl1 addHists hists'
   where

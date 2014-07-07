@@ -6,9 +6,16 @@ import Control.Applicative
 import Control.Concurrent.STM (modifyTVar', newTVarIO, readTVar, writeTVar)
 import Control.Monad
 import Control.Monad.STM
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as C
+import Data.Digest.Pure.SHA (hmacSha1, integerDigest)
+import Data.Digits (digits)
+import Data.Int
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
+import Data.Time.Clock (UTCTime, getCurrentTime)
+import qualified Data.Vector.Storable as V
+import System.Random (RandomGen, random)
 
 newIndex :: IO ImageIndex
 newIndex = ImageIndex <$> newTVarIO M.empty <*> newTVarIO Nothing
@@ -39,6 +46,9 @@ removeUserIndex :: ImageIndex -> UserIndex -> STM ()
 removeUserIndex ii@(ImageIndex {..}) ui@(UserIndex {..}) = do
     modifyTVar' iiUsers (M.delete uiName)
     detatchNode ii ui
+
+userIndexSize :: UserIndex -> STM Int
+userIndexSize UserIndex {..} = M.size <$> readTVar uiImages
 
 -- Tags ------------------------------------------------------------------------
 
@@ -74,7 +84,7 @@ lookupTag UserIndex {..} tagPath = do
             Nothing  -> return Nothing
 
 -- | Removes the tag if and only if there is no more image in this tag and in
--- all of its children. Removes the parent tag if this one become orphan.
+-- all of its children. Removes the parent tag if this last become orphan too.
 removeTagIfOrphan :: Tag -> STM ()
 removeTagIfOrphan     (Tag RootTag              _ _) = return ()
 removeTagIfOrphan tag@(Tag (SubTag name parent) _ _) = do
@@ -103,21 +113,57 @@ getTagImages tag =
         imgs <- readTVar tImages
         foldM dfs (imgs : acc) (M.elems subs)
 
+-- Image codes -----------------------------------------------------------------
+
+-- | Number of characters in an 'ImageCode'.
+imageCodeLength :: Int
+imageCodeLength = 16
+
+-- | Generates a new unique image code using the given random generator and
+-- secret key. Returns the new state of the generator.
+newImageCode :: RandomGen g
+             => ByteString -> UserIndex -> g -> STM (ImageCode, g)
+newImageCode key ui@(UserIndex {..}) gen = do
+    imgs <- readTVar uiImages
+    if code `M.member` imgs
+        then return (code, gen'')
+        else newImageCode key ui gen'' -- Already used code, retries.
+   where
+    -- Uses two 64 bits random number to generate a 128 bits random value.
+    rand1, rand2 :: Int64
+    (rand1, gen')  = random gen
+    (rand2, gen'') = random gen'
+
+    key' = key <> (C.pack $ T.unpack uiName)
+
+    code = let rand' = (C.pack $ show rand1) <> (C.pack $ show rand2)
+               hmac  = integerDigest $ hmacSha1 key' rand'
+           in ImageCode $ T.pack $ take imageCodeLength $ toBase62 $ hmac
+
+    -- | Encodes an integer in base 62 (using letters and numbers).
+    toBase62 i = map ((digitToChar V.!) . fromInteger) $ digits 62 i
+
+    digitToChar = V.fromList $ ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
+
 -- Images ----------------------------------------------------------------------
 
--- | Binds the given image and all its tags to the given user.
-addImage :: UserIndex -> Image -> STM ()
-addImage ui@(UserIndex {..}) img@(Image {..}) = do
-    modifyTVar' uiImages (M.insert iHmac img)
+addImage :: RandomGen g
+        => ByteString -> UserIndex -> g -> Maybe Text -> Set Tags -> Histogram
+        -> STM (Image, g)
+addImage key ui@(UserIndex {..}) gen name tags hist = do
+    (code, gen') <- newImageCode key ui gen
+    let !img = Image code name tags hist
+    modifyTVar' uiImages (M.insert code img)
     mapM (bindImageTag img) iTags
+    return (img, gen')
 
-lookupImage :: UserIndex -> Hmac -> STM (Maybe Image)
-lookupImage UserIndex {..} hmac = M.lookup hmac <$> readTVar uiImages
+lookupImage :: UserIndex -> ImageCode -> STM (Maybe Image)
+lookupImage UserIndex {..} code = M.lookup code <$> readTVar uiImages
 
 -- | Unbinds the given image from the given users and from all its tags.
 removeImage :: UserIndex -> Image -> STM ()
 removeImage ui@(UserIndex {..}) img@(Image {..}) = do
-    modifyTVar' uiImages (M.delete iHmac)
+    modifyTVar' uiImages (M.delete iCode)
     mapM (unBindImageTag img) iTags
 
 -- | Creates a link between the tag and the image.

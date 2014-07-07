@@ -3,9 +3,12 @@ module Handler.Image (
     ) where
 
 import Import
+import Control.Monad
+import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Conduit (($$), runResourceT)
 import Data.Conduit.Binary (sinkLbs)
 import Data.Time.Clock (getCurrentTime)
+import System.Random (newStdGen)
 import qualified Vision.Image as I
 
 import ImageIndex.Manage
@@ -14,29 +17,33 @@ import Util.Mashape
 -- | Lists every image of the user.
 getImagesR :: Handler Value
 getImagesR = do
-    user        <- mhUser <$> getMashapeHeaders
+    username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
     tagExpr     <- getTagExpression
 
     imgs <- atomically $ do
-        ui <- getUserIndex ii (userName user) currentTime
+        ui <- getUserIndex ii userName currentTime
         getMatchingImages ui tagExpr
 
     returnJson imgs
 
 data NewImage = NewImage {
-      niFile       :: FileInfo
-    , niName       :: Maybe Text
+      niName       :: Maybe Text
     , niTags       :: Maybe Text
     , niIgnoreBack :: Bool
     , niIgnoreSkin :: Bool
     }
 
 -- | Registers a new image to the index. Returns a '201 Created' status on
--- success.
+-- success. Fails with a '400 Bad request' with an invalid query or a '429
+-- Too Many Requests'.
 postImagesR :: Handler Value
 postImagesR = do
+    files <- lookupFiles "image"
+    when (null files) $
+        apiFail (BadRequest ["No image was uploaded"])
+
     result <- runInputPostResult newImageForm
 
     case result of
@@ -44,12 +51,11 @@ postImagesR = do
         FormFailure errs -> apiFail (BadRequest errs)
         FormSuccess img  ->
             case parseTagList (niTags img) of
-                Right tags -> addImage (niFile img) (niName img) tags
+                Right tags -> addImage files (niName img) tags
                                        (niIgnoreBack img) (niIgnoreSkin img)
                 Left  err  -> apiFail (BadRequest ["Invalid tag list"])
   where
-    newImageForm = NewImage <$> ireq fileField     "file"
-                            <*> iopt textField     "name"
+    newImageForm = NewImage <$> iopt textField     "name"
                             <*> iopt textField     "tags"
                             <*> ireq checkBoxField "ignore_background"
                             <*> ireq checkBoxField "ignore_skin"
@@ -57,27 +63,85 @@ postImagesR = do
     parseTagList (Just tagList) = parse tagListParser "tag list" tagList
     parseTagList Nothing        = []
 
-    addImage file name tags ignoreBack ignoreSkin = do
-        bs   <- runResourceT $ fileSourceRaw file $$ sinkLbs
-        eImg <- I.loadBS Nothing bs
+    addImage files !name tags ignoreBack ignoreSkin = do
+        mImgs <- readImages files
 
-        case eImg of
-            Left  _   -> BadRequest ["Unable to read the image format"]
-            Right img ->
-                username    <- mhUser <$> getMashapeHeaders
-                ii          <- imageIndex <$> getYesod
+        case mImgs of
+            Just imgs -> do
+                let !hist = histogramsAverage $
+                                map (compute ignoreBack ignoreSkin) imgs
+
+                headers     <- getMashapeHeaders
+                let userName = mhUser headers
+                    maxSize  = maxIndexSize $ mhSubscription headers
+
+                app         <- getYesod
+                let key = encryptKey yesod
+                    ii  = imageIndex yesod
+
                 currentTime <- lift getCurrentTime
+                gen         <- lift newStdGen
 
-                img <- atomically $ do
-                    ui <- getUserIndex ii username currentTime
+                -- Tries to add the image. Returns Nothing if the index has too
+                -- many images.
+                mImg <- atomically $ do
+                    ui    <- getUserIndex ii username currentTime
+                    size  <- userIndexSize ui
 
-                sendResponseStatus (created201) (returnJson img)
+                    if size < maxSize
+                        then do
+                            tags'    <- mapM (getTag ui) tags
+                            (img, _) <- addImage key ui gen name tags' hist
+                            touchUserIndex ii ui currentTime
+                            return $! Just img
+                        else return Nothing
 
-getImageR :: Hmac -> Handler Value
-getImageR = undefined
+                case mImg of
+                    Just img -> do
+                        url <- getUrlRender <*> pure (ImageR $! iCode img)
+                        addHeader "Location" url
+                        sendResponseStatus created201 (toJSON img)
+                    Nothing  -> apiFail IndexExhausted
+            Nothing -> apiFail InvalidImage
 
-patchImageR :: Hmac -> Handler Value
-patchImageR = undefined
 
-deleteImageR :: Hmac -> Handler Value
-deleteImageR = undefined
+    readImages files = runMaybeT $ do
+        forM files $ \file -> do
+            bs   <- liftIO $ runResourceT $ fileSourceRaw file $$ sinkLbs
+            eImg <- liftIO $ I.loadBS Nothing bs
+
+            case eImg of Left  _   -> MaybeT $! return Nothing
+                         Right img -> return img
+
+-- | Returns the data associated with an image. Fails with a '404 Not found'
+-- error when the image is not in the index.
+getImageR :: ImageCode -> Handler Value
+getImageR code = do
+    username    <- mhUser <$> getMashapeHeaders
+    ii          <- imageIndex <$> getYesod
+    currentTime <- lift getCurrentTime
+
+    mImg <- atomically $ do
+        ui <- getUserIndex ii userName currentTime
+        lookupImage ui code
+
+    case mImg of
+        Just img -> returnJson img
+        Nothing  -> apiFail NotFound
+
+-- | Returns a '204 No content' on success. Fails with a '404 Not found' error
+-- when the image is not in the index.
+deleteImageR :: ImageCode -> Handler ()
+deleteImageR code = do
+    username    <- mhUser <$> getMashapeHeaders
+    ii          <- imageIndex <$> getYesod
+    currentTime <- lift getCurrentTime
+
+    exists <- atomically $ do
+        ui <- getUserIndex ii userName currentTime
+        mImg <- lookupImage ui code
+        case mImg of Just img -> removeImage ui img >> return True
+                     Nothing  -> return False
+
+    if exists then sendResponseStatus created201 ()
+              else apiFail NotFound

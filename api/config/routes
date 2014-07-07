@@ -1,5 +1,5 @@
 /images                     ImagesR              GET POST
-/images/#Hmac               ImageR               GET PATCH DELETE
+/images/#ImageCode          ImageR               GET DELETE
 
 /search-by-colors           SearchColorsR        POST
 /search-by-image            SearchImageR         POST

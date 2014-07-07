@@ -21,24 +21,17 @@ data Color w = Color {
     , cWeight :: !w
     } deriving Show
 
-shiftPadd :: Int
-shiftPadd =
-    
-  where
-    !(Z :. nHues :. _) = cHistSize defaultConfig
-
 -- | Fixs the image color before being mapped to an histogram.
 -- As the hue is divided in the histogram in several bins, we need to shift it
 -- so a perceived color (such as red) fits in the center of a bin.
 shiftHue :: HSVPixel -> HSVPixel
 shiftHue pix@{..} = pix {
-      hsvHue = word8 ((int hsvHue + shiftPadd) `mod` 180)
+      hsvHue = word8 ((int hsvHue + middleHue) `mod` 180)
     }
 {-# INLINE shiftHue #-}
 
 -- | Returns the primary RGB colors of the histogram, sorted by their decreasing
--- weight.
--- Histogram values must be normalized to @1@.
+-- weight. Ignores colors with a weight less than the given value.
 histColors :: Ord a => Histogram DIM3 a -> a -> [Color a]
 histColors !hist !minVal =
     sortBy (flip compare `on` snd) [ Color (histBinColor ix) v
