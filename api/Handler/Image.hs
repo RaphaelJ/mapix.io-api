@@ -11,6 +11,7 @@ import Data.Time.Clock (getCurrentTime)
 import System.Random (newStdGen)
 import qualified Vision.Image as I
 
+import Handler.Json
 import ImageIndex.Manage
 import Util.Mashape
 
@@ -30,7 +31,7 @@ getImagesR = do
 
 data NewImage = NewImage {
       niName       :: Maybe Text
-    , niTags       :: Maybe Text
+    , niTags       :: Maybe [TagPath]
     , niIgnoreBack :: Bool
     , niIgnoreSkin :: Bool
     }
@@ -56,12 +57,16 @@ postImagesR = do
                 Left  err  -> apiFail (BadRequest ["Invalid tag list"])
   where
     newImageForm = NewImage <$> iopt textField     "name"
-                            <*> iopt textField     "tags"
+                            <*> iopt tagListField  "tags"
                             <*> ireq checkBoxField "ignore_background"
                             <*> ireq checkBoxField "ignore_skin"
 
-    parseTagList (Just tagList) = parse tagListParser "tag list" tagList
-    parseTagList Nothing        = []
+    tagListField =
+        let decodeTagList expr =
+                case decode' expr of
+                    Just tags -> Right tags
+                    Nothing   -> Left "Invalid tag list"
+        in check decodeTagList textField
 
     addImage files !name tags ignoreBack ignoreSkin = do
         mImgs <- readImages files
@@ -145,3 +150,14 @@ deleteImageR code = do
 
     if exists then sendResponseStatus created201 ()
               else apiFail NotFound
+
+data Listing = Listing {
+      lFilter :: Maybe TagExpression
+    , lCount  :: Maybe Int
+    }
+
+listingForm =
+    Listing <$> iopt tagExpressionField "filter"
+            <*> iopt countField         "count"
+  where
+    countField = checkBool (> 0) "Non-positive count value" intField

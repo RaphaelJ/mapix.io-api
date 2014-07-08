@@ -55,7 +55,7 @@ data UserIndex = UserIndex {
 -- string). It contains only images which aren't registered to any tag.
 -- The SubTag is used for "real" tags of the hierarchy.
 
-type TagPath = [Text]
+newtype TagPath = TagPath [Text]
 
 data TagType = RootTag | SubTag !Text !Tag -- ^ Tag\'s name and sub-tag.
     deriving (Eq, Ord)

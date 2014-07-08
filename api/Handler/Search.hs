@@ -7,6 +7,8 @@ import Import
 import Control.Monad
 import qualified Data.Vector as V
 
+import Handler.Json ()
+
 data ColorSearch w = ColorSearch {
       csColors :: [Color w]
     , csFilter :: Maybe Text
@@ -26,21 +28,16 @@ postColorSearchR = do
                     case search (csColors)
                 Left  err  -> apiFail (BadRequest ["Invalid tag expression"])
   where
-    colorSearchForm = ColorSearch <$> ireq textField "colors"
-                                  <*> iopt textField "filter"
-                                  <*> iopt intField  "count"
+    colorSearchForm = ColorSearch <$> ireq colorsField        "colors"
+                                  <*> iopt tagExpressionField "filter"
+                                  <*> iopt countField         "count"
 
-    colorField = textField {
-          fieldParse = \vals files ->
-                case fieldParse textField vals files of
-                    Right expr ->
-                        case eitherDecode' expr of
-                            Just a   -> Right 
-                            Nothing  -> Left "Invalid color expression"
-                    Left err   -> Left err
-        }
-        
-    arr <- json' 
+    colorsField =
+        let decodeColors expr =
+                case decode' expr of
+                    Just colors -> Right colors
+                    Nothing     -> Left "Invalid colors expression"
+        in check decodeColors textField
 
 postImageSearchR :: Handler Value
 postImageSearchR = undefined

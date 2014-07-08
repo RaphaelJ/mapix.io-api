@@ -1,5 +1,5 @@
 module ImageIndex.Histogram.Color (
-      Color (..), shiftHue, histColors, histBinColor, rgb2Hex
+      Color (..), shiftHue, histColors, histBinColor
     ) where
 
 import Data.Char
@@ -44,12 +44,6 @@ histColors !hist !minVal =
 histBinColor :: DIM3 -> HSVPixel
 histBinColor !(Z :. h :. s :. v) =  HSVPixel h (s + middleSat) (v + middleVal)
 {-# INLINE histBinColor #-}
-
-rgb2Hex :: RGBPixel -> Text
-rgb2Hex !(RGBPixel r g b) =
-    T.pack $! printf "#%s%s%s" (toHex r) (toHex g) (toHex b)
-  where
-    toHex v = let (q, r) = v `quotRem` 16 in [ intToDigit q, intToDigit r ]
 
 -- Constants -------------------------------------------------------------------
 

@@ -27,10 +27,6 @@ data TagExpression = TagPath TagPath
                    | TagOr   TagExpression TagExpression
     deriving Show
 
--- | Name of the GET variable which is used in queries to filter images by tag.
-tagGetParam :: Text
-tagGetParam = "tag"
-
 -- Handlers --------------------------------------------------------------------
 
 getTagsR :: Handler Html
@@ -67,36 +63,29 @@ tagExpressionParser =
 -- | Parses one tag expression (i.e. @theme:beach@).
 tagPathParser :: Parser TagPath
 tagPathParser = let tagName = T.pack <$> many1 (lower <|> digit)
-                in tagName `sepBy1` char ':'
+                in TagPath <$> tagName `sepBy1` char ':'
 
 -- | Parses a list of tags separated by commas.
 tagListParser :: Parser [TagPath]
 tagListParser =
     spaces >> ((tagPathParser <* spaces) `sepBy` (char ',' >> spaces)) <* eof
 
--- | Returs the full name of the tag (i.e. @theme:beach@).
-tagPath :: Tag -> Text
+-- | Returns the full name of the tag (i.e. @theme:beach@).
+tagPath :: Tag -> TagPath
 tagPath =
-    toStrict . toLazyText . go ""
+    go []
   where
     go acc (Tag RootTag              _ _) = acc
-    go acc (Tag (SubTag name parent) _ _) =
-        go (":" <> fromText name <> acc) parent
+    go acc (Tag (SubTag name parent) _ _) = go (name : acc) parent
 
 -- Search ----------------------------------------------------------------------
 
--- | Tries to parse the tag GET parameter. Returns 'Nothing' if no tag parameter
--- has been given. Fails with an API error if the tag expression failed to be
--- parsed.
-getTagExpression :: Handler (Maybe TagExpression)
-getTagExpression = do
-    mExpr <- lookupGetParams tagExprGetParam
-    case mExpr of Just expr -> parseExpr expr
-                  Nothing   -> Nothing
-  where
-    parseExpr expr = case parse tagExpressionParser "" expr of
-                        Left  err  -> apiFail (InvalidTagExpression err)
-                        Right expr -> Just expr
+tagExpressionField =
+    let parseTagExpression str =
+            case parse tagExpressionParser "" str of
+                Right expr -> Right expr
+                Left _     -> Left "Invalid tag expression"
+    in check parseTagExpression textField
 
 -- | Searchs for images in the user\'s index which match the given tag
 -- expression. If no 'TagExpression' is given, return the 'RootTag' images.

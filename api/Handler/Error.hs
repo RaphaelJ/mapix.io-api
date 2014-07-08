@@ -21,7 +21,7 @@ errorName IndexExhausted = "INDEX-EXHAUSTED"
 
 errorMessage :: APIError -> Maybe Text
 errorMessage (BadRequest errs) =
-    let errsTxt = T.intercalate "," errs
+    let errsTxt = T.intercalate ", " errs
     in Just $! "The you submitted an inccorect request: " <> errsTxt
 errorMessage NotFound =
     Just $! "The resource you are looking for doesn't exist"
