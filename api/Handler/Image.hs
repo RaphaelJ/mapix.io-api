@@ -18,11 +18,11 @@ import Util.Mashape
 -- | Lists every image of the user.
 getImagesR :: Handler Value
 getImagesR = do
+    Listing tagExpr count <- runInputGet listingForm
+
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
-
-    Listing tagExpr count <- runInputGet listingForm
 
     imgs <- atomically $ do
         ui <- getUserIndex ii userName currentTime
@@ -60,9 +60,8 @@ postImagesR =
 
     tagListField =
         let decodeTagList expr =
-                case decode' expr of
-                    Just tags -> Right tags
-                    Nothing   -> Left "Invalid tag list"
+                case decode' expr of Just tags -> Right tags
+                                     Nothing   -> Left "Invalid tag list"
         in check decodeTagList textField
 
     addImage NewImage {..} = do
@@ -114,9 +113,22 @@ postImagesR =
             case eImg of Left  _   -> MaybeT $! return Nothing
                          Right img -> return img
 
+-- | Deletes every image matching the (optional) tag expression. Returns a '204
+-- No Content'.
 deleteImagesR :: Handler ()
 deleteImagesR = do
-    
+    tagExpr <- runInputGet (iopt tagExpressionField "filter")
+
+    username    <- mhUser <$> getMashapeHeaders
+    ii          <- imageIndex <$> getYesod
+    currentTime <- lift getCurrentTime
+
+    atomically $ do
+        ui   <- getUserIndex ii userName currentTime
+        imgs <- getMatchingImages ui tagExpr
+        mapM (removeImage ui) imgs
+
+    sendResponseStatus noContent204 ()
 
 -- | Returns the data associated with an image. Fails with a '404 Not found'
 -- error when the image is not in the index.
@@ -130,9 +142,8 @@ getImageR code = do
         ui <- getUserIndex ii userName currentTime
         lookupImage ui code
 
-    case mImg of
-        Just img -> returnJson img
-        Nothing  -> apiFail NotFound
+    case mImg of Just img -> returnJson img
+                 Nothing  -> notFound
 
 -- | Returns a '204 No content' on success. Fails with a '404 Not found' error
 -- when the image is not in the index.
@@ -149,7 +160,7 @@ deleteImageR code = do
                      Nothing  -> return False
 
     if exists then sendResponseStatus noContent204 ()
-              else apiFail NotFound
+              else notFound
 
 data Listing = Listing {
       lFilter :: Maybe TagExpression

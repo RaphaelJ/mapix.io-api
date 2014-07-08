@@ -9,29 +9,21 @@ import qualified Data.Vector as V
 
 import Handler.Json ()
 
-data ColorSearch w = ColorSearch {
-      csColors :: [Color w]
-    , csFilter :: Maybe Text
-    , csCount  :: Maybe Int
-    }
-
 postColorSearchR :: Handler Value
 postColorSearchR = do
-    result <- runInputPostResult colorSearchForm
+    colors                <- runInputPost (ireq colorsField "colors")
+    Listing tagExpr count <- runInputPost listingForm
 
-    case result of
-        FormMissing      -> apiFail (BadRequest ["Missing request arguments"])
-        FormFailure errs -> apiFail (BadRequest errs)
-        FormSuccess req  ->
-            case parseTagExpr (csFilter req) of
-                Right expr -> do
-                    case search (csColors)
-                Left  err  -> apiFail (BadRequest ["Invalid tag expression"])
+    username    <- mhUser <$> getMashapeHeaders
+    ii          <- imageIndex <$> getYesod
+    currentTime <- lift getCurrentTime
+
+    imgs <- atomically $ do
+        ui <- getUserIndex ii userName currentTime
+        getMatchingImages ui tagExpr
+
+    returnJson $ search count imgs
   where
-    colorSearchForm = ColorSearch <$> ireq colorsField        "colors"
-                                  <*> iopt tagExpressionField "filter"
-                                  <*> iopt countField         "count"
-
     colorsField =
         let decodeColors expr =
                 case decode' expr of
@@ -41,3 +33,7 @@ postColorSearchR = do
 
 postImageSearchR :: Handler Value
 postImageSearchR = undefined
+
+search :: Set Image -> [(Image, Float)]
+search count imgs =
+    take $ sortBy $ 
