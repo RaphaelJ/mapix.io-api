@@ -21,7 +21,8 @@ getImagesR = do
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
-    tagExpr     <- getTagExpression
+
+    Listing tagExpr count <- runInputGet listingForm
 
     imgs <- atomically $ do
         ui <- getUserIndex ii userName currentTime
@@ -43,7 +44,7 @@ postImagesR :: Handler Value
 postImagesR = do
     files <- lookupFiles "image"
     when (null files) $
-        apiFail (BadRequest ["No image was uploaded"])
+        invalidArgs ["No image was uploaded"]
 
     result <- runInputPostResult newImageForm
 
@@ -118,6 +119,10 @@ postImagesR = do
             case eImg of Left  _   -> MaybeT $! return Nothing
                          Right img -> return img
 
+deleteImagesR :: Handler ()
+deleteImagesR = do
+    
+
 -- | Returns the data associated with an image. Fails with a '404 Not found'
 -- error when the image is not in the index.
 getImageR :: ImageCode -> Handler Value
@@ -148,7 +153,7 @@ deleteImageR code = do
         case mImg of Just img -> removeImage ui img >> return True
                      Nothing  -> return False
 
-    if exists then sendResponseStatus created201 ()
+    if exists then sendResponseStatus noContent204 ()
               else apiFail NotFound
 
 data Listing = Listing {

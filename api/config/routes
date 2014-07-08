@@ -1,4 +1,4 @@
-/images                     ImagesR              GET POST
+/images                     ImagesR              GET POST DELETE
 /images/#ImageCode          ImageR               GET DELETE
 
 /search-by-colors           SearchColorsR        POST
