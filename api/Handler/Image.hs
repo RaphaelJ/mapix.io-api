@@ -32,6 +32,7 @@ getImagesR = do
 
 data NewImage = NewImage {
       niName       :: Maybe Text
+    , niFiles      :: [FileInfo]
     , niTags       :: Maybe [TagPath]
     , niIgnoreBack :: Bool
     , niIgnoreSkin :: Bool
@@ -41,26 +42,21 @@ data NewImage = NewImage {
 -- success. Fails with a '400 Bad request' with an invalid query or a '429
 -- Too Many Requests'.
 postImagesR :: Handler Value
-postImagesR = do
-    files <- lookupFiles "image"
-    when (null files) $
-        invalidArgs ["No image was uploaded"]
-
-    result <- runInputPostResult newImageForm
-
-    case result of
-        FormMissing      -> apiFail (BadRequest ["Missing request arguments"])
-        FormFailure errs -> apiFail (BadRequest errs)
-        FormSuccess img  ->
-            case parseTagList (niTags img) of
-                Right tags -> addImage files (niName img) tags
-                                       (niIgnoreBack img) (niIgnoreSkin img)
-                Left  err  -> apiFail (BadRequest ["Invalid tag list"])
+postImagesR =
+    addImage <*> runInputPost newImageForm
   where
     newImageForm = NewImage <$> iopt textField     "name"
+                            <*> ireq filesFiled    "images"
                             <*> iopt tagListField  "tags"
                             <*> ireq checkBoxField "ignore_background"
                             <*> ireq checkBoxField "ignore_skin"
+
+    filesField = Field {
+          fieldParse = \_ files ->
+            if null files then return $! Right Nothing
+                          else return $! Right files
+        , fieldView = undefined, fieldEnctype = Multipart
+        }
 
     tagListField =
         let decodeTagList expr =
@@ -69,7 +65,7 @@ postImagesR = do
                     Nothing   -> Left "Invalid tag list"
         in check decodeTagList textField
 
-    addImage files !name tags ignoreBack ignoreSkin = do
+    addImage NewImage {..} = do
         mImgs <- readImages files
 
         case mImgs of
@@ -108,8 +104,7 @@ postImagesR = do
                         addHeader "Location" url
                         sendResponseStatus created201 (toJSON img)
                     Nothing  -> apiFail IndexExhausted
-            Nothing -> apiFail InvalidImage
-
+            Nothing -> invalidArgs ["Unreadable image"]
 
     readImages files = runMaybeT $ do
         forM files $ \file -> do
