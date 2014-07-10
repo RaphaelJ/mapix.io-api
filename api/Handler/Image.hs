@@ -3,12 +3,11 @@ module Handler.Image (
     ) where
 
 import Import
-import Control.Monad
-import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Conduit (($$), runResourceT)
 import Data.Conduit.Binary (sinkLbs)
 import Data.Time.Clock (getCurrentTime)
 import System.Random (newStdGen)
+import Vision.Image (StorageImage)
 import qualified Vision.Image as I
 
 import Handler.Json
@@ -32,7 +31,7 @@ getImagesR = do
 
 data NewImage = NewImage {
       niName       :: Maybe Text
-    , niFiles      :: [FileInfo]
+    , niImages     :: [StorageImage]
     , niTags       :: Maybe [TagPath]
     , niIgnoreBack :: Bool
     , niIgnoreSkin :: Bool
@@ -42,72 +41,51 @@ data NewImage = NewImage {
 -- success. Fails with a '400 Bad request' with an invalid query or a '429
 -- Too Many Requests'.
 postImagesR :: Handler Value
-postImagesR =
-    addImage <*> runInputPost newImageForm
+postImagesR = do
+    NewImage {..} <- runInputPost newImageForm
+
+    let !hist = histogramsAverage $
+                    map (compute ignoreBack ignoreSkin) niImages
+
+    headers     <- getMashapeHeaders
+    let userName = mhUser headers
+        maxSize  = maxIndexSize $ mhSubscription headers
+
+    app         <- getYesod
+    let key = encryptKey yesod
+        ii  = imageIndex yesod
+
+    currentTime <- lift getCurrentTime
+    gen         <- lift newStdGen
+
+    -- Tries to add the image. Returns Nothing if the index has too
+    -- many images.
+    mImg <- atomically $ do
+        ui   <- getUserIndex ii username currentTime
+        size <- userIndexSize ui
+
+        if size < maxSize
+            then do
+                tags'    <- mapM (getTag ui) tags
+                (img, _) <- addImage key ui gen name tags' hist
+                touchUserIndex ii ui currentTime
+                return $! Just img
+            else return Nothing
+
+    case mImg of
+        Just img -> do
+            url <- getUrlRender <*> pure (ImageR $! iCode img)
+            addHeader "Location" url
+            sendResponseStatus created201 (toJSON img)
+        Nothing  -> apiFail IndexExhausted
   where
     newImageForm = NewImage <$> iopt textField     "name"
-                            <*> ireq filesFiled    "images"
+                            <*> ireq imagesField   "images"
                             <*> iopt tagListField  "tags"
                             <*> iopt checkBoxField "ignore_background"
                             <*> iopt checkBoxField "ignore_skin"
 
-    filesField = Field {
-          fieldParse = \_ files ->
-            if null files then return $! Right Nothing
-                          else return $! Right files
-        , fieldView = undefined, fieldEnctype = Multipart
-        }
-
     tagListField = jsonField "Invalid tag list"
-
-    addImage NewImage {..} = do
-        mImgs <- readImages files
-
-        case mImgs of
-            Just imgs -> do
-                let !hist = histogramsAverage $
-                                map (compute ignoreBack ignoreSkin) imgs
-
-                headers     <- getMashapeHeaders
-                let userName = mhUser headers
-                    maxSize  = maxIndexSize $ mhSubscription headers
-
-                app         <- getYesod
-                let key = encryptKey yesod
-                    ii  = imageIndex yesod
-
-                currentTime <- lift getCurrentTime
-                gen         <- lift newStdGen
-
-                -- Tries to add the image. Returns Nothing if the index has too
-                -- many images.
-                mImg <- atomically $ do
-                    ui    <- getUserIndex ii username currentTime
-                    size  <- userIndexSize ui
-
-                    if size < maxSize
-                        then do
-                            tags'    <- mapM (getTag ui) tags
-                            (img, _) <- addImage key ui gen name tags' hist
-                            touchUserIndex ii ui currentTime
-                            return $! Just img
-                        else return Nothing
-
-                case mImg of
-                    Just img -> do
-                        url <- getUrlRender <*> pure (ImageR $! iCode img)
-                        addHeader "Location" url
-                        sendResponseStatus created201 (toJSON img)
-                    Nothing  -> apiFail IndexExhausted
-            Nothing -> invalidArgs ["Unreadable image"]
-
-    readImages files = runMaybeT $ do
-        forM files $ \file -> do
-            bs   <- liftIO $ runResourceT $ fileSourceRaw file $$ sinkLbs
-            eImg <- liftIO $ I.loadBS Nothing bs
-
-            case eImg of Left  _   -> MaybeT $! return Nothing
-                         Right img -> return img
 
 -- | Deletes every image matching the (optional) tag expression. Returns a '204
 -- No Content'.
