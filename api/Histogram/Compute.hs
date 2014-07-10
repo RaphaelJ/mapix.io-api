@@ -1,21 +1,21 @@
 -- | 
-module ImageIndex.Histogram.Compute (
+module Histogram.Compute (
       compute, histogramsAverage
     )
 
 import Control.Monad.ST
 import Data.List
 import Data.Maybe
-
-import ImageIndex.Config (cMaxImageSize, defaultConfig)
-
 import qualified Vision.Histogram as H
 import Vision.Image (
-      GreyImage, GreyPixel, MaskedDelayed, MutableManifest, RGBImage, RGBAPixel
+      GreyImage, GreyPixel, MaskedDelayed, MutableManifest, HSVDelayed
+    , RGBImage, RGBAPixel
     , SeparableFilter, StorageImage (..)
     )
 import qualified Vision.Image as I
 import Vision.Primitive (ix2)
+
+import ImageIndex.Config (cMaxImageSize, defaultConfig)
 
 compute :: Bool -> Bool -> StorageImage -> Histogram
 compute !ignoreBack !ignoreSkin !io =
@@ -55,7 +55,9 @@ compute !ignoreBack !ignoreSkin !io =
                         else Nothing
         ]
 
-    calcHist = Histogram . I.histogram (Just (cHistSize defaultConfig))
+    calcHist rgb =
+        let hsv = I.map (shiftHue . convert) rgb :: HSVDelayed
+        in Histogram $! H.histogram (Just (cHistSize defaultConfig))
 
     -- Does an && between two masks boolean pixels.
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
@@ -106,7 +108,7 @@ histogramsAverage hists =
   where
     normalize' = H.normalize 1.0
 
-    addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2) 
+    addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2)
         | sh1 /= sh2 = error "Histograms are not of equal size."
         | otherwise  = let vecSum = V.zipWith (+) vec1 vec2
                        in Histogram sh1 vecSum

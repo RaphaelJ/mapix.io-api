@@ -1,17 +1,17 @@
-module ImageIndex.Histogram.Color (
-      Color (..), shiftHue, histColors, histBinColor
+module Histogram.Color (
+      Color (..), shiftHue, histColors, colorsHist, histBinColor
     ) where
 
 import Data.Char
 import Data.Function
 import Data.List
-import qualified Data.Vector.Storable as S
+import qualified Data.Vector.Storable as V
 import Data.Text (Text)
 import Text.Printf
-import Vision.Histogram (Histogram (..), HistogramShape)
+import Vision.Histogram (Histogram (..), HistogramShape,)
 import qualified Vision.Histogram as H
-import Vision.Image (RGBPixel (..), HSVPixel (..))
-import Vision.Primitive (Z (..), (:.) (..), DIM3, shapeLength)
+import Vision.Image (RGBPixel (..), HSVPixel (..), convert)
+import Vision.Primitive (Z (..), (:.) (..), DIM3, shapeLength, toLinearIndex)
 
 import ImageIndex.Histogram.Config (Config (cHistSize), defaultConfig)
 
@@ -37,6 +37,23 @@ histColors !hist !minVal =
     sortBy (flip compare `on` snd) [ Color (histBinColor ix) v
                                    | (ix, v) <- H.assocs hist, v >= minVal ]
 {-# SPECIALIZE histColors :: Histogram DIM3 Float -> Float -> [Color Float] #-}
+
+-- | Constructs an hitsogram from the given list of weighted colors.
+colorsHist :: Num a => DIM3 -> [Color a] -> Histogram DIM3 a
+colorsHist size colors =
+    let initial = V.replicate (shapeLength size) 0
+        vec     = V.accum (+) initial [ (toHistLinearIndex rgb, v)
+                                      | Color rgb v <- colors ]
+    in H.normalize $ Histogram size vec
+  where
+    domain = H.domainSize (undefined :: RGBPixel)
+
+    toHistLinearIndex =   toLinearIndex size
+                        . H.toBin size domain
+                        . H.pixToIndex
+                        . shiftHue
+                        . convert
+{-# SPECIALIZE colorsHist :: [Color Float] -> Histogram DIM3 Float #-}
 
 -- | Returns the color corresponding to the center of the given histogram bin.
 -- Assumes that the hue has been shifted before the histogram computation (with

@@ -1,5 +1,5 @@
 -- | Provides a run-length based compression algorithm to compress histograms.
-module ImageIndex.Histogram.Compress (
+module Histogram.Compress (
       CompressedHistogram (..), compress, decompress, size
     ) where
 

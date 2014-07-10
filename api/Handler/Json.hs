@@ -11,6 +11,12 @@ import ImageIndex.Histogram.Color
 import ImageIndex.Tag (tagPath)
 import ImageIndex.Type
 
+jsonField err =
+    let jsonParser expr =
+            case decode' expr of Just node -> Right node
+                                 Nothing   -> Left err
+    in check jsonParser textField
+
 instance ToJSON Image where
     toJSON Image {..} =
         object $ [

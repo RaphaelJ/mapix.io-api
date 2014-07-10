@@ -2,7 +2,7 @@
 
 -- | Provides instances for the serialization and persistence of 'Float'
 -- histograms.
-module ImageIndex.Histogram.Serialize () where
+module Histogram.Serialize () where
 
 import Prelude
 import Control.Applicative

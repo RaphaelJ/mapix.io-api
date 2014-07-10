@@ -80,5 +80,5 @@ data Image = Image {
     , iHist :: !Histogram
     } deriving (Eq, Ord)
 
-newtype Histogram = Histogram !(H.Histogram DIM3 Float)
+newtype Histogram = Histogram { hHist :: !(H.Histogram DIM3 Float) }
     deriving (Eq, Ord)

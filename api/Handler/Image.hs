@@ -28,7 +28,7 @@ getImagesR = do
         ui <- getUserIndex ii userName currentTime
         getMatchingImages ui tagExpr
 
-    returnJson imgs
+    returnJson $ take (fromMaybe 100 count) imgs
 
 data NewImage = NewImage {
       niName       :: Maybe Text
@@ -48,8 +48,8 @@ postImagesR =
     newImageForm = NewImage <$> iopt textField     "name"
                             <*> ireq filesFiled    "images"
                             <*> iopt tagListField  "tags"
-                            <*> ireq checkBoxField "ignore_background"
-                            <*> ireq checkBoxField "ignore_skin"
+                            <*> iopt checkBoxField "ignore_background"
+                            <*> iopt checkBoxField "ignore_skin"
 
     filesField = Field {
           fieldParse = \_ files ->
@@ -58,11 +58,7 @@ postImagesR =
         , fieldView = undefined, fieldEnctype = Multipart
         }
 
-    tagListField =
-        let decodeTagList expr =
-                case decode' expr of Just tags -> Right tags
-                                     Nothing   -> Left "Invalid tag list"
-        in check decodeTagList textField
+    tagListField = jsonField "Invalid tag list"
 
     addImage NewImage {..} = do
         mImgs <- readImages files
@@ -170,5 +166,3 @@ data Listing = Listing {
 listingForm =
     Listing <$> iopt tagExpressionField "filter"
             <*> iopt countField         "count"
-  where
-    countField = checkBool (> 0) "Non-positive count value" intField
