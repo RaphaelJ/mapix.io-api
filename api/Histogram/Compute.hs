@@ -15,7 +15,7 @@ import Vision.Image (
 import qualified Vision.Image as I
 import Vision.Primitive (ix2)
 
-import ImageIndex.Config (cMaxImageSize, defaultConfig)
+import Histogram.Config (cMaxImageSize, defaultConfig)
 
 compute :: Bool -> Bool -> StorageImage -> Histogram
 compute !ignoreBack !ignoreSkin !io =
@@ -102,12 +102,14 @@ backgroundMask img =
 
     !(Z :. h :. w) = I.shape img
 
-histogramsAverage hists =
-    let hists' = map normalize' hists
-    in normalize' $ foldl1 addHists hists'
-  where
-    normalize' = H.normalize 1.0
+normalize = H.normalize 1.0
 
+histogramsAverage [hist] = normalize hist
+histogramsAverage hists  =
+    let hists' = map normalize hists
+        n      = fromIntegral $ length hists
+    in H.map (/ n) $ foldl1 addHists hists'
+  where
     addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2)
         | sh1 /= sh2 = error "Histograms are not of equal size."
         | otherwise  = let vecSum = V.zipWith (+) vec1 vec2

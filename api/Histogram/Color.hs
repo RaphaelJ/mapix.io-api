@@ -13,7 +13,7 @@ import qualified Vision.Histogram as H
 import Vision.Image (RGBPixel (..), HSVPixel (..), convert)
 import Vision.Primitive (Z (..), (:.) (..), DIM3, shapeLength, toLinearIndex)
 
-import ImageIndex.Histogram.Config (Config (cHistSize), defaultConfig)
+import Histogram.Config (Config (cHistSize), defaultConfig)
 
 -- | The color with its weight.
 data Color w = Color {
@@ -44,7 +44,7 @@ colorsHist size colors =
     let initial = V.replicate (shapeLength size) 0
         vec     = V.accum (+) initial [ (toHistLinearIndex rgb, v)
                                       | Color rgb v <- colors ]
-    in H.normalize $ Histogram size vec
+    in H.normalize 1.0 $ Histogram size vec
   where
     domain = H.domainSize (undefined :: RGBPixel)
 

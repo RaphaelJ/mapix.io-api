@@ -82,8 +82,8 @@ postImagesR = do
     newImageForm = NewImage <$> iopt textField     "name"
                             <*> ireq imagesField   "images"
                             <*> iopt tagListField  "tags"
-                            <*> iopt checkBoxField "ignore_background"
-                            <*> iopt checkBoxField "ignore_skin"
+                            <*> ireq checkBoxField "ignore_background"
+                            <*> ireq checkBoxField "ignore_skin"
 
     tagListField = jsonField "Invalid tag list"
 
