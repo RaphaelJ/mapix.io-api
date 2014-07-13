@@ -29,9 +29,9 @@ data ImageSearch = ImageSearch {
 postImageSearchR :: Handler Value
 postImageSearchR = do
     ImageSearch imgs ignoreBack ignoreSkin <- runInputPost imageSearchForm
-    search (colorsHist colors)
+    search $ histsAvg $ map (compute ignoreBack ignoreSkin) imgs
   where
-    imageSearchForm = ImageSearch <$> ireq imagesField   "images"
+    imageSearchForm = ImageSearch <$> ireq imagesField   "image"
                                   <*> ireq checkBoxField "ignore_background"
                                   <*> ireq checkBoxField "ignore_skin"
 
@@ -39,11 +39,6 @@ data ResultLising = ResultLising {
       rlFilter :: Maybe TagExpression
     , rlCount  :: Maybe Int
     , rlMin    :: Maybe Double
-    }
-
-data SearchResult = SearchResult {
-      srImage :: Image
-    , srScore :: Float
     }
 
 search :: Histogram DIM3 Float -> Handler Value
@@ -62,7 +57,7 @@ search hist = do
                   | img <- imgs
                   , let score = compareHist hist (hHist img)
                   , score >= minScore ]
-        sorted  = sortBy (flip compare `on` snd) results
+        sorted  = sortBy (flip compare `on` srScore) results
 
     returnJson $ take (fromMaybe 100 count) sorted
 

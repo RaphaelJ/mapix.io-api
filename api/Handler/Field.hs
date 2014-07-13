@@ -1,5 +1,5 @@
 module Handler.Field (
-      countField, imagesField
+      countField, imagesField, jsonField, tagExpressionField
     ) where
 
 import Control.Applicative
@@ -88,3 +88,17 @@ imagesField =
         case eImg of
             Left  _   -> throwError Unreadable
             Right img -> return img
+
+-- | Accepts an error message and returns a field which decode the JSON text
+-- field into the corresponding required type.
+jsonField err =
+    let jsonParser expr = case decode' expr of Just node -> Right node
+                                               Nothing   -> Left err
+    in check jsonParser textField
+
+tagExpressionField =
+    let parseTagExpression txt =
+            case parse tagExpressionParser "" txt of
+                Right expr -> Right expr
+                Left _     -> Left "Invalid tag expression"
+    in check parseTagExpression textField

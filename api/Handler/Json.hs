@@ -11,12 +11,6 @@ import ImageIndex.Histogram.Color
 import ImageIndex.Tag (tagPath)
 import ImageIndex.Type
 
-jsonField err =
-    let jsonParser expr =
-            case decode' expr of Just node -> Right node
-                                 Nothing   -> Left err
-    in check jsonParser textField
-
 instance ToJSON Image where
     toJSON Image {..} =
         object $ [
@@ -66,11 +60,21 @@ instance FromJSON w => FromJSON (Color w) where
         hexChar = satisfy isHexDigit
     fromJSON _          = mzero
 
+data SearchResult = SearchResult {
+      srImage :: Image
+    , srScore :: Float
+    }
+
+instance ToJSON SearchResult where
+    toJSON (SearchResult img score) =
+        object [ "image" .= img
+               , "score" .= score ]
+
 instance ToJSON Tag where
-    toJSON = toJSON . tagPath
+    toJSON (Tag _ subs _) = array subs
 
 instance ToJSON TagPath where
-    toJSON = String . T.intercalate ":"
+    toJSON = String . tagPath2Text
 
 instance FromJSON TagPath where
     fromJSON (String s) | Right tag <- parse tagPathParser "" s = return tag

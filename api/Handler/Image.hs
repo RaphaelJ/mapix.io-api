@@ -44,8 +44,7 @@ postImagesR :: Handler Value
 postImagesR = do
     NewImage {..} <- runInputPost newImageForm
 
-    let !hist = histogramsAverage $
-                    map (compute ignoreBack ignoreSkin) niImages
+    let !hist = histsAvg $ map (compute niIgnoreBack niIgnoreSkin) niImages
 
     headers     <- getMashapeHeaders
     let userName = mhUser headers
@@ -66,8 +65,8 @@ postImagesR = do
 
         if size < maxSize
             then do
-                tags'    <- mapM (getTag ui) tags
-                (img, _) <- addImage key ui gen name tags' hist
+                tags     <- mapM (getTag ui) niTags
+                (img, _) <- addImage key ui gen name tags hist
                 touchUserIndex ii ui currentTime
                 return $! Just img
             else return Nothing
@@ -80,7 +79,7 @@ postImagesR = do
         Nothing  -> apiFail IndexExhausted
   where
     newImageForm = NewImage <$> iopt textField     "name"
-                            <*> ireq imagesField   "images"
+                            <*> ireq imagesField   "image"
                             <*> iopt tagListField  "tags"
                             <*> ireq checkBoxField "ignore_background"
                             <*> ireq checkBoxField "ignore_skin"

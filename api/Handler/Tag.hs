@@ -29,11 +29,51 @@ data TagExpression = TagPath TagPath
 
 -- Handlers --------------------------------------------------------------------
 
+-- | Returns the hierarchy of tags.
 getTagsR :: Handler Html
-getTagsR = undefined
+getTagsR = do
+    username    <- mhUser <$> getMashapeHeaders
+    ii          <- imageIndex <$> getYesod
+    currentTime <- lift getCurrentTime
 
-getTagR :: TagId -> Handler Html
-getTagR = undefined
+    rootTag <- atomically $ do
+        ui <- getUserIndex ii userName currentTime
+        uiRootTag ui
+
+    returnJson rootTag
+
+-- | Returns the tag and its sub-tags. Fails with a '404 Not Found' error if the
+-- tag doesn't exist.
+getTagR :: TagPath -> Handler Html
+getTagR path =
+    username    <- mhUser <$> getMashapeHeaders
+    ii          <- imageIndex <$> getYesod
+    currentTime <- lift getCurrentTime
+
+    mTag <- atomically $ do
+        ui <- getUserIndex ii userName currentTime
+        lookupTag ui path
+
+    case mTag of Just tag -> returnJson rootTag
+                 _        -> notFound
+
+-- | Removes this tag and its subtags without removing the images. Returns a
+-- '204 No content' on success. Fails with a '404 Not Found' error if the tag
+-- doesn't exist.
+deleteTagR :: TagPath -> Handler Html
+deleteTagR path =
+    username    <- mhUser <$> getMashapeHeaders
+    ii          <- imageIndex <$> getYesod
+    currentTime <- lift getCurrentTime
+
+    exists <- atomically $ do
+        ui <- getUserIndex ii userName currentTime
+        mTag <- lookupTag ui path
+        case mTag of Nothing  -> return False
+                     Just tag -> removeTag tag >> return True
+
+    if exists then sendResponseStatus noContent204 ()
+              else notFound
 
 -- Expressions -----------------------------------------------------------------
 
@@ -65,11 +105,6 @@ tagPathParser :: Parser TagPath
 tagPathParser = let tagName = T.pack <$> many1 (lower <|> digit)
                 in TagPath <$> tagName `sepBy1` char ':'
 
--- | Parses a list of tags separated by commas.
-tagListParser :: Parser [TagPath]
-tagListParser =
-    spaces >> ((tagPathParser <* spaces) `sepBy` (char ',' >> spaces)) <* eof
-
 -- | Returns the full name of the tag (i.e. @theme:beach@).
 tagPath :: Tag -> TagPath
 tagPath =
@@ -78,14 +113,16 @@ tagPath =
     go acc (Tag RootTag              _ _) = acc
     go acc (Tag (SubTag name parent) _ _) = go (name : acc) parent
 
--- Search ----------------------------------------------------------------------
+tagPath2Text = T.intercalate ":"
 
-tagExpressionField =
-    let parseTagExpression str =
-            case parse tagExpressionParser "" str of
-                Right expr -> Right expr
-                Left _     -> Left "Invalid tag expression"
-    in check parseTagExpression textField
+instance PathPiece TagPath where
+    fromPathPiece txt =
+        case parse tagPathParser "" txt of Right path -> Just path
+                                           Left _     -> Nothing
+
+    toPathPiece = tagPath2Text
+
+-- Search ----------------------------------------------------------------------
 
 -- | Searchs for images in the user\'s index which match the given tag
 -- expression. If no 'TagExpression' is given, return the 'RootTag' images.

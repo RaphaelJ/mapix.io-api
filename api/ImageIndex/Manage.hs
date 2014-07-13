@@ -55,8 +55,8 @@ userIndexSize UserIndex {..} = M.size <$> readTVar uiImages
 -- | Returns the last tag of the requested hierarchy of tags.
 -- Creates tags which don\'t exist on the path.
 getTag :: UserIndex -> TagPath -> STM Tag
-getTag UserIndex {..} tagPath = do
-    readTVar uiRootTag >>= dfs tagPath
+getTag UserIndex {..} path = do
+    readTVar uiRootTag >>= dfs path
   where
     dfs []       tag               = return tag
     dfs (t : ts) parent@(Tag {..}) = do
@@ -73,8 +73,8 @@ getTag UserIndex {..} tagPath = do
 -- | Returns the last tag of the requested hierarchy of tags if the whole
 -- hierarchy exists.
 lookupTag :: UserIndex -> TagPath -> STM (Maybe Tag)
-lookupTag UserIndex {..} tagPath = do
-    readTVar uiRootTag >>= dfs tagPath
+lookupTag UserIndex {..} path = do
+    readTVar uiRootTag >>= dfs path
   where
     dfs []       tag               = return $ Just tag
     dfs (t : ts) parent@(Tag {..}) =
@@ -82,6 +82,22 @@ lookupTag UserIndex {..} tagPath = do
         case M.lookup t subTagsVal of
             Just tag -> dfs ts tag
             Nothing  -> return Nothing
+
+-- | Removes the tag and its subtags. Dereferences their images. Removes the
+-- parent tag if it has become orphan. Does nothing for the root tag.
+removeTag :: UserIndex -> Tag -> STM ()
+removeTag _  (Tag RootTag              _ _)     = return ()
+removeTag ui tag@(Tag (SubTag name parent) _ _) = do
+    dfs tag
+    removeTagIfOrphan parent
+  where
+    dfs tag'@(Tag {..}) = do
+        readTVar tSubTags >>= mapM dfs
+
+        imgs <- readTVar tImages
+        forM imgs $ \img ->
+            unBindImage ui img
+            bindImage ui img { iTags = S.delete tag' (iTags img) }
 
 -- | Removes the tag if and only if there is no more image in this tag and in
 -- all of its children. Removes the parent tag if this last become orphan too.
@@ -148,34 +164,46 @@ newImageCode key ui@(UserIndex {..}) gen = do
 -- Images ----------------------------------------------------------------------
 
 addImage :: RandomGen g
-        => ByteString -> UserIndex -> g -> Maybe Text -> Set Tags -> Histogram
+        => ByteString -> UserIndex -> g -> Maybe Text -> [Tags] -> Histogram
         -> STM (Image, g)
 addImage key ui@(UserIndex {..}) gen name tags hist = do
     (code, gen') <- newImageCode key ui gen
-    let !img = Image code name tags hist
-    modifyTVar' uiImages (M.insert code img)
-    mapM (bindImageTag img) iTags
+    let !img = Image code name (S.fromList tags) hist
+    bindImage ui img
     return (img, gen')
 
 lookupImage :: UserIndex -> ImageCode -> STM (Maybe Image)
 lookupImage UserIndex {..} code = M.lookup code <$> readTVar uiImages
 
--- | Unbinds the given image from the given users and from all its tags.
+-- | Unbinds the given image from the given user and from all its tags so it's
+-- no more referenced in the index. Removes tags which don't have any image
+-- pointing them. Similar to 'unBindImage' but removes orphan tags.
 removeImage :: UserIndex -> Image -> STM ()
-removeImage ui@(UserIndex {..}) img@(Image {..}) = do
+removeImage ui img@(Image {..}) = do
+    unBindImage ui img
+    mapM removeTagIfOrphan (S.toList uiTags)
+
+bindImage :: UserIndex -> Image -> STM ()
+bindImage UserIndex {..} img@(Image {..}) = do
+    modifyTVar' uiImages (M.insert iCode img)
+    if S.empty iTags then bindImageTag img uiRootTag
+                     else mapM (bindImageTag img) (S.toList tags)
+
+-- | Unbinds the given image from the given user and from all its tags so it's
+-- no more referenced in the index.
+unBindImage :: UserIndex -> Image -> STM ()
+unBindImage UserIndex {..} img@(Image {..}) = do
     modifyTVar' uiImages (M.delete iCode)
-    mapM (unBindImageTag img) iTags
+    if S.empty iTags then unBindImageTag img uiRootTag
+                     else mapM (unBindImageTag img) (S.toList tags)
 
 -- | Creates a link between the tag and the image.
 bindImageTag :: Image -> Tag -> STM ()
 bindImageTag img tag@(Tag {..}) = modifyTVar' tImages (S.insert img)
 
--- | Removes the link between the tag and the image. Removes the tag if no more
--- image are pointing to it.
+-- | Removes the link between the tag and the image.
 unBindImageTag :: Tag -> Image -> STM ()
-unBindImageTag img tag@(Tag {..}) = do
-    modifyTVar' tImages (S.delete img)
-    removeTagIfOrphan tag
+unBindImageTag img tag@(Tag {..}) = modifyTVar' tImages (S.delete img)
 
 -- | Returns the set of images of the user.
 getImages :: UserIndex -> STM (Set Image)

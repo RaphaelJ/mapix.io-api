@@ -17,16 +17,16 @@ import Vision.Primitive (ix2)
 
 import Histogram.Config (cMaxImageSize, defaultConfig)
 
-compute :: Bool -> Bool -> StorageImage -> Histogram
-compute !ignoreBack !ignoreSkin !io =
+computeHist :: Bool -> Bool -> StorageImage -> Histogram
+computeHist !ignoreBack !ignoreSkin !io =
     if null masks
-       then calcHist rgb
+       then histogram rgb
        else let !globMask  = foldl1' andMasks masks
                 !maskedRgb =
                     I.fromFunction (I.shape rgb) $ \pt ->
                         if globMask `I.index` pt then Just $! rgb `I.index` pt
                                                  else Nothing
-            in calcHist maskedRgb
+            in histogram maskedRgb
   where
     !maxSize = cMaxImageSize defaultConfig
 
@@ -55,7 +55,7 @@ compute !ignoreBack !ignoreSkin !io =
                         else Nothing
         ]
 
-    calcHist rgb =
+    histogram rgb =
         let hsv = I.map (shiftHue . convert) rgb :: HSVDelayed
         in Histogram $! H.histogram (Just (cHistSize defaultConfig))
 
@@ -104,8 +104,10 @@ backgroundMask img =
 
 normalize = H.normalize 1.0
 
-histogramsAverage [hist] = normalize hist
-histogramsAverage hists  =
+-- | Computes the average of a set of histograms. Returns a normalized histogram
+-- (sum hist == 1.0).
+histsAvg [hist] = normalize hist
+histsAvg hists  =
     let hists' = map normalize hists
         n      = fromIntegral $ length hists
     in H.map (/ n) $ foldl1 addHists hists'
