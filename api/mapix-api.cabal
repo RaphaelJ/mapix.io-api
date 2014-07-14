@@ -14,23 +14,27 @@ Flag library-only
 library
     exposed-modules: Application
                      Foundation
+                     Handler.Config
+                     Handler.Error
+                     Handler.Field
                      Handler.Image
+                     Handler.Json
                      Handler.Search
                      Handler.Tag
-                     ImageIndex.Histogram.Color
-                     ImageIndex.Histogram.Compress
-                     ImageIndex.Histogram.Serialize
-                     ImageIndex.Json
+                     Handler.Type
+                     Histogram.Color
+                     Histogram.Compare
+                     Histogram.Compress
+                     Histogram.Compute
+                     Histogram.Config
+                     Histogram.Serialize
                      ImageIndex.Manage
-                     ImageIndex.Tag
                      ImageIndex.Type
                      Import
                      Model
                      Settings
                      Settings.Development
-                     Util.Histogram
-                     Util.Hmac
-                     Util.Hmac.Type
+                     Util.Mashape
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
@@ -59,23 +63,30 @@ library
                  , cereal                       >= 0.4.0.1      && < 0.5
                  , bytestring                   >= 0.9          && < 0.11
                  , conduit                      >= 1.0
+                 , conduit-extra                >= 1.1.0.4      && < 2.0
+                 , containers                   >= 0.5.5.1      && < 0.6
                  , clientsession                >= 0.9.0.3      && < 0.10
                  , data-default
                  , digits                       >= 0.2          && < 0.3
                  , directory                    >= 1.1          && < 1.3
                  , fast-logger                  >= 2.1
-                 , filepath                     >= 1.3.0.1      && < 2
+                 , filepath                     >= 1.3.0.1      && < 2.0
                  , friday
                  , http-conduit                 >= 2.1          && < 2.2
+                 , http-types                   >= 0.8.5        && < 0.9
                  , monad-control                >= 0.3          && < 0.4
                  , monad-logger                 >= 0.3
+                 , mtl                          >= 2.1.3.1      && < 3.0
+                 , parsec                       >= 3.1.5        && < 4.0
                  , persistent                   >= 1.3          && < 1.4
                  , persistent-sqlite            >= 1.3          && < 1.4
                  , persistent-template          >= 1.3          && < 1.4
-                 , SHA                          >= 1.6.1        && < 2
-                 , stm                          >= 2.4.3        && < 3
+                 , random                       >= 1.0.1.1      && < 2.0
+                 , SHA                          >= 1.6.1        && < 2.0
+                 , stm                          >= 2.4.3        && < 3.0
                  , template-haskell
-                 , text                         >= 0.11         && < 2
+                 , text                         >= 0.11         && < 2.0
+                 , time                         >= 1.4.2        && < 2.0
                  , vector                       >= 0.10.9.1     && < 1.0
                  , warp                         >= 3.0          && < 3.1
                  , wai-extra                    >= 3.0          && < 3.1

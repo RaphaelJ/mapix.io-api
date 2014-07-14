@@ -8,7 +8,7 @@ import Control.Monad
 import Control.Monad.Error (Error, ErrorT (..), runErrorT)
 import qualified Data.ByteString as S
 import Data.Conduit (($$), ($$+-))
-import Network.HTTP.Conduit (HttpException, 
+import Network.HTTP.Conduit (HttpException)
 import Network.HTTP.Types.Status (statusIsSuccessful)
 
 import Handler.Config (Config (cMaxFileSize), defaultConfig)
@@ -95,6 +95,10 @@ jsonField err =
     let jsonParser expr = case decode' expr of Just node -> Right node
                                                Nothing   -> Left err
     in check jsonParser textField
+
+scoreField = checkBool (\v -> v >= 0.0 && v <= 1.0)
+                       "Score must be a value between 0.0 and 1.0"
+                       doubleField
 
 tagExpressionField =
     let parseTagExpression txt =

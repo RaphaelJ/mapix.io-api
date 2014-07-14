@@ -1,7 +1,7 @@
--- | 
+-- | Computes the histogram from an image. Optionally removes the 
 module Histogram.Compute (
       compute, histogramsAverage
-    )
+    ) where
 
 import Control.Monad.ST
 import Data.List

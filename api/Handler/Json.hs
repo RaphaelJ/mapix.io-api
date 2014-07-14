@@ -7,9 +7,9 @@ import qualified Data.Set as S
 import Text.Parsec.Text (char, count, optional, parse, satisfy)
 import Yesod.Core.Json
 
-import ImageIndex.Histogram.Color
 import ImageIndex.Tag (tagPath)
 import ImageIndex.Type
+import Histogram.Color
 
 instance ToJSON Image where
     toJSON Image {..} =
@@ -59,11 +59,6 @@ instance FromJSON w => FromJSON (Color w) where
 
         hexChar = satisfy isHexDigit
     fromJSON _          = mzero
-
-data SearchResult = SearchResult {
-      srImage :: Image
-    , srScore :: Float
-    }
 
 instance ToJSON SearchResult where
     toJSON (SearchResult img score) =

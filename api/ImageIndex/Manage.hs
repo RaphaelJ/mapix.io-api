@@ -11,7 +11,7 @@ import qualified Data.ByteString.Lazy.Char8 as C
 import Data.Digest.Pure.SHA (hmacSha1, integerDigest)
 import Data.Digits (digits)
 import Data.Int
-import qualified Data.Map.Strict as M
+import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import qualified Data.Vector.Storable as V

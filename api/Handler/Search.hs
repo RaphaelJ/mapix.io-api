@@ -64,7 +64,3 @@ search hist = do
 resultListingForm = ResultLising <$> iopt tagExpressionField "filter"
                                  <*> iopt countField         "count"
                                  <*> iopt scoreField         "min_score"
-
-scoreField = checkBool (\v -> v >= 0.0 && v <= 1.0)
-                       "Score must be a value between 0.0 and 1.0"
-                       doubleField
