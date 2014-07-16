@@ -5,6 +5,7 @@ module Histogram.Compress (
 
 import Prelude
 import Data.Word
+import qualified Data.Vector.Storable as SV
 import Data.Vector.Unboxed (Unbox)
 import qualified Data.Vector.Unboxed as UV
 import Foreign.Storable (Storable (..))

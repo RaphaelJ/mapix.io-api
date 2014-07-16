@@ -1,5 +1,7 @@
 module ImageIndex.Type where
 
+import Prelude
+
 import Control.Concurrent.STM.TVar (TVar)
 import Data.Function
 import Data.Int
@@ -17,13 +19,6 @@ import Yesod
 newtype ImageCode = ImageCode Text
     deriving (Eq, Ord, IsString, PersistField, PersistFieldSql, PathPiece
             , ToJSON)
-
-instance Show ImageCode where
-    show (ImageCode txt) = show txt
-
-instance Read ImageCode where
-    readsPrec n str = map (first ImageCode) (readsPrec n str)
-    readList str = map (first (map ImageCode)) (readList str)
 
 data ImageIndex = ImageIndex {
       iiUsers     :: !(TVar (Map UserName UserIndex))
@@ -66,12 +61,6 @@ data Tag = Tag {
     -- | Only contains images which are not in sub-tags.
     , tImages  :: !(TVar (Set Image))
     }
-
-instance Eq Tag where
-    (==)    = (==)    `on` tType
-
-instance Ord Tag where
-    compare = compare `on` tType
 
 data Image = Image {
       iCode :: !ImageCode

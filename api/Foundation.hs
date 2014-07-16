@@ -13,7 +13,6 @@ import ImageIndex.Type (ImageIndex)
 import Settings (Extra (..))
 import qualified Settings
 import Settings.Development (development)
-import Util.Hmac.Type (Hmac)
 
 -- | The site argument for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application

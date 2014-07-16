@@ -22,12 +22,15 @@ library
                      Handler.Search
                      Handler.Tag
                      Handler.Type
+                     Histogram
                      Histogram.Color
                      Histogram.Compare
                      Histogram.Compress
                      Histogram.Compute
                      Histogram.Config
                      Histogram.Serialize
+                     ImageIndex
+                     ImageIndex.Instance
                      ImageIndex.Manage
                      ImageIndex.Type
                      Import
@@ -55,6 +58,7 @@ library
                         NoMonomorphismRestriction
                         NoImplicitPrelude
                         MultiParamTypeClasses
+                        RecordWildCards
                         TemplateHaskell
                         TypeFamilies
 

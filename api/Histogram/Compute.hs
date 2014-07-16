@@ -3,19 +3,27 @@ module Histogram.Compute (
       compute, histogramsAverage
     ) where
 
+import Prelude
+
+import Control.Monad
 import Control.Monad.ST
 import Data.List
 import Data.Maybe
+import Data.Ratio
+import qualified Data.Vector.Storable as V
+import Vision.Detector.Edge (canny)
+import Vision.Histogram (Histogram (..))
 import qualified Vision.Histogram as H
 import Vision.Image (
-      GreyImage, GreyPixel, MaskedDelayed, MutableManifest, HSVDelayed
+      Image, GreyImage, GreyPixel, DelayedMask, MutableManifest, HSVDelayed
     , RGBImage, RGBAPixel
     , SeparableFilter, StorageImage (..)
     )
 import qualified Vision.Image as I
-import Vision.Primitive (ix2)
+import Vision.Primitive (Z (..), (:.) (..), ix2)
 
-import Histogram.Config (cMaxImageSize, defaultConfig)
+import Histogram.Color (shiftHue)
+import Histogram.Config (cMaxImageSize, cHistSize, defaultConfig)
 
 computeHist :: Bool -> Bool -> StorageImage -> Histogram
 computeHist !ignoreBack !ignoreSkin !io =
@@ -45,8 +53,8 @@ computeHist !ignoreBack !ignoreSkin !io =
                           RGBAStorage img -> resize img
                           RGBStorage  img -> resize img
 
-    rbg :: RGBImage
-    !rbg = I.convert io'
+    rgb :: RGBImage
+    !rgb = I.convert io'
 
     masks = catMaybes [
           case io' of RGBAStorage rgba -> Just $! alphaMask rgba
@@ -56,14 +64,14 @@ computeHist !ignoreBack !ignoreSkin !io =
         ]
 
     histogram rgb =
-        let hsv = I.map (shiftHue . convert) rgb :: HSVDelayed
+        let hsv = I.map (shiftHue . I.convert) rgb :: HSVDelayed
         in Histogram $! H.histogram (Just (cHistSize defaultConfig))
 
     -- Does an && between two masks boolean pixels.
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
 
-alphaMask = I.map (\!(RGBAPixel _ _ _ a) -> a == maxBound)
+alphaMask = I.map (\pix -> I.rgbaAlpha pix == maxBound)
 
 backgroundMask img =
     I.map (/= backgroundVal) flooded
@@ -80,8 +88,13 @@ backgroundMask img =
     grey, blurred, edges, closed :: GreyImage
     !grey    = I.convert img :: GreyImage
     !blurred = I.apply grey blur
-    !edges   = I.canny blurred sobelRadius cannyLow cannyHigh
+    !edges   = canny blurred sobelRadius cannyLow cannyHigh
     !closed  = closure 2 edges
+
+    closure rad img =
+        let img' :: I.GreyImage
+            img' = img `I.apply` I.dilate rad
+        in img' `I.apply` I.erode rad
 
     !flooded = I.create $ do
         mut <- I.thaw closed :: ST s (MutableManifest GreyPixel s)
@@ -93,7 +106,7 @@ backgroundMask img =
 
     -- Only fills from the corner if the corner is not an edge.
     fillIfNotEdge pt mut = do
-        val = I.read mut pt
+        let val = I.read mut pt
         when (val /= backgroundVal) $
             I.floodFill pt mut backgroundVal
 

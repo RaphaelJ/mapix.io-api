@@ -7,8 +7,7 @@ import qualified Vision.Histogram as H
 import Vision.Primitive (DIM5)
 import Yesod
 
-import Model.Field ()
-import Util.Hmac.Type
+import ImageIndex (ImageCode)
 
 share [mkPersist sqlOnlySettings, mkMigrate "migrateAll"] [persistLowerCase|
 User

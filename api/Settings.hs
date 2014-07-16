@@ -17,4 +17,4 @@ data Extra = Extra {
     } deriving Show
 
 parseExtra :: DefaultEnv -> Object -> Parser Extra
-parseExtra _ o = return Extra
+parseExtra _ _ = return Extra

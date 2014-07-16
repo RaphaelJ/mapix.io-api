@@ -7,8 +7,8 @@ import qualified Data.Set as S
 import Text.Parsec.Text (char, count, optional, parse, satisfy)
 import Yesod.Core.Json
 
-import ImageIndex.Tag (tagPath)
-import ImageIndex.Type
+import Handler.Tag (tagPath)
+import Handler.Type
 import Histogram.Color
 
 instance ToJSON Image where
