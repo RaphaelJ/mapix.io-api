@@ -2,18 +2,29 @@ module Handler.Field (
       countField, imagesField, jsonField, tagExpressionField
     ) where
 
+import Import
+
 import Control.Applicative
 import qualified Control.Exception as E
 import Control.Monad
-import Control.Monad.Error (Error, ErrorT (..), runErrorT)
+import Control.Monad.Error (Error (..), ErrorT (..), runErrorT, throwError)
+import Control.Monad.Reader (runReaderT)
+import Control.Monad.Trans.Resource (runResourceT)
+import Data.Aeson (decode')
 import qualified Data.ByteString as S
-import Data.Conduit (($$), ($$+-))
-import Network.HTTP.Conduit (HttpException)
+import Data.Conduit (($$), ($$+-), await)
+import qualified Data.Text as T
+import Network.HTTP.Conduit (HttpException, http, parseUrl, responseBody)
+import Network.HTTP.Client.Conduit (withResponse)
 import Network.HTTP.Types.Status (statusIsSuccessful)
+import qualified Vision.Image as I
+import Text.Parsec (parse)
+import Yesod
 
 import Handler.Config (Config (cMaxFileSize), defaultConfig)
+import ImageIndex.Tag (tagExpressionParser)
 
-countField = checkBool (> 0) "Non-positive count value" intField
+countField = checkBool (> 0) ("Non-positive count value" :: Text) intField
 
 data ImageError = Unreadable -- ^ Unable to read the image encoding.
                 | TooLarge
@@ -27,23 +38,26 @@ instance Error ImageError where
 -- | Fails if at least one image is unreadable.
 imagesField =
     Field {
-          fieldParse = parse, fieldView = undefined, fieldEnctype = Multipart
+          fieldParse = parser, fieldView = undefined, fieldEnctype = Multipart
         }
   where
-    parse urls files = do
+    parser urls files = do
         eImgs <- runErrorT $ do
             readFiles files
             readUrls  urls
 
         case eImgs of
-            Right (_:_)         -> Right mImgs
-            Right []            -> Right Nothing
-            Left Unreadable     -> Left "Unreadable image format"
-            Left TooLarge       -> Left "The image exceed the maximum file size"
-            Left InvalidUrl     -> Left "Invalid URL"
-            Left NetworkError e ->
-                Left $ "Network error when downloading the image: " ++ show e
-            Left OtherError     -> Left "Unknown error while reading the image"
+            Right (_:_)           -> Just <$> Right eImgs
+            Right []              -> Right Nothing
+            Left Unreadable       -> Left "Unreadable image format"
+            Left TooLarge         ->
+                Left "The image exceed the maximum file size"
+            Left InvalidUrl       -> Left "Invalid URL"
+            Left (NetworkError e) ->
+                let eText = T.pack $ show e
+                in Left $ "Network error when downloading the image: " <> eText
+            Left OtherError       ->
+                Left "Unknown error while reading the image"
 
     -- Consumes the ByteString stream up to the maximum file size.
     -- Throws an error if the stream is longer.
@@ -54,13 +68,13 @@ imagesField =
             case mBs of
                 Nothing -> return []
                 Just bs -> let len = S.length bs
-                           in (bs:) <$> sinkLbsCheckMaxSize (maxFileSize - len)
+                           in (bs:) <$> sinkLbsMaxSize (maxFileSize - len)
 
     -- Downloads and opens the images from the URLs.
     readUrls urls = do
         manager <- httpManager <$> getYesod
         forM urls $ \url ->
-            case parseUrl url of
+            case parseUrl (T.unpack url) of
                 Nothing  -> throwError InvalidUrl
                 Just req -> do
                     res <- http req
@@ -76,7 +90,7 @@ imagesField =
                     ErrorT $! return res
 
     -- Opens the images from the uploaded files.
-    readFiles = mapM (readSource . fileSourceRaw)
+    readFiles = mapM (readSource . fileSource)
 
     -- Opens the image from a conduit source.
     readSource source = do

@@ -32,6 +32,7 @@ library
                      ImageIndex
                      ImageIndex.Instance
                      ImageIndex.Manage
+                     ImageIndex.Tag
                      ImageIndex.Type
                      Import
                      Model
@@ -86,11 +87,13 @@ library
                  , persistent-sqlite            >= 1.3          && < 1.4
                  , persistent-template          >= 1.3          && < 1.4
                  , random                       >= 1.0.1.1      && < 2.0
+                 , resourcet                    >= 1.1.2.2      && < 2.0
                  , SHA                          >= 1.6.1        && < 2.0
                  , stm                          >= 2.4.3        && < 3.0
                  , template-haskell
                  , text                         >= 0.11         && < 2.0
                  , time                         >= 1.4.2        && < 2.0
+                 , unordered-containers         >= 0.2.5.0      && < 0.3
                  , vector                       >= 0.10.9.1     && < 1.0
                  , warp                         >= 3.0          && < 3.1
                  , wai-extra                    >= 3.0          && < 3.1

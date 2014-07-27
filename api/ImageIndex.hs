@@ -1,9 +1,10 @@
 module ImageIndex (
-      module ImageIndex.Instance
-    , module ImageIndex.Manage
+      module ImageIndex.Manage
+    , module ImageIndex.Tag
     , module ImageIndex.Type
     ) where
 
-import ImageIndex.Instance
+import ImageIndex.Instance ()
 import ImageIndex.Manage
+import ImageIndex.Tag
 import ImageIndex.Type

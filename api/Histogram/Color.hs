@@ -1,5 +1,6 @@
 module Histogram.Color (
-      Color (..), shiftHue, histColors, colorsHist, histBinColor
+      ImageWithColors (..), Color (..)
+    , normalize, shiftHue, histColors, colorsHist, histBinColor
     ) where
 
 import Prelude
@@ -15,12 +16,23 @@ import Vision.Image (RGBPixel (..), HSVPixel (..), convert)
 import Vision.Primitive (Z (..), (:.) (..), DIM3, shapeLength, toLinearIndex)
 
 import Histogram.Config (Config (cHistSize), defaultConfig)
+import ImageIndex (Image)
+
+-- | The JSON instance of this 'Image' wrapper will also display the main colors
+-- of the image.
+newtype ImageWithColors = ImageWithColors Image
 
 -- | The color with its weight.
 data Color w = Color {
       cColor  :: !RGBPixel
     , cWeight :: !w
     } deriving Show
+
+-- | Normalize the histogram so the sum of its values equals 1.
+normalize :: (Storable a, Real a, Fractional a)
+          => Histogram sh a -> Histogram sh a
+normalize = H.normalize 1.0
+{-# SPECIALIZE normalize :: Histogram sh Float -> Histogram sh Float #-}
 
 -- | Fixs the image color before being mapped to an histogram.
 -- As the hue is divided in the histogram in several bins, we need to shift it
@@ -44,9 +56,9 @@ colorsHist :: (Fractional a, Real a, Storable a)
            => DIM3 -> [Color a] -> Histogram DIM3 a
 colorsHist size colors =
     let initial = V.replicate (shapeLength size) 0
-        vec     = V.accum (+) initial [ (toHistLinearIndex rgb, v)
-                                      | Color rgb v <- colors ]
-    in H.normalize 1.0 $ Histogram size vec
+        vec     = V.accum (+) initial [ (toHistLinearIndex rgb, val)
+                                      | Color rgb val <- colors ]
+    in normalize $ Histogram size vec
   where
     domain = H.domainSize (undefined :: RGBPixel)
 

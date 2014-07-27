@@ -1,6 +1,6 @@
 -- | Computes the histogram from an image. Optionally removes the 
 module Histogram.Compute (
-      compute, histogramsAverage
+      computeHist, histsAvg
     ) where
 
 import Prelude
@@ -11,30 +11,36 @@ import Data.List
 import Data.Maybe
 import Data.Ratio
 import qualified Data.Vector.Storable as V
+import Foreign.Storable (Storable)
 import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
 import qualified Vision.Histogram as H
 import Vision.Image (
-      Image, GreyImage, GreyPixel, DelayedMask, MutableManifest, HSVDelayed
-    , RGBImage, RGBAPixel
+      GreyImage, GreyPixel, DelayedMask, Manifest, MutableManifest
+    , HSVDelayed, HSVPixel, RGBAImage, RGBImage, RGBPixel
     , SeparableFilter, StorageImage (..)
     )
 import qualified Vision.Image as I
-import Vision.Primitive (Z (..), (:.) (..), ix2)
+import Vision.Primitive (Z (..), (:.) (..), DIM3, ix2)
 
-import Histogram.Color (shiftHue)
+import Histogram.Color (normalize, shiftHue)
 import Histogram.Config (cMaxImageSize, cHistSize, defaultConfig)
 
-computeHist :: Bool -> Bool -> StorageImage -> Histogram
+type Mask = Manifest Bool
+
+computeHist :: Bool -> Bool -> StorageImage -> Histogram DIM3 Float
 computeHist !ignoreBack !ignoreSkin !io =
     if null masks
-       then histogram rgb
-       else let !globMask  = foldl1' andMasks masks
-                !maskedRgb =
+       then let hsv = toHSV rgb :: HSVDelayed
+            in calcHist hsv
+       else let !globMask = foldl1' andMasks masks
+                maskedRgb :: DelayedMask RGBPixel
+                maskedRgb =
                     I.fromFunction (I.shape rgb) $ \pt ->
                         if globMask `I.index` pt then Just $! rgb `I.index` pt
                                                  else Nothing
-            in histogram maskedRgb
+                maskedHSV = toHSV maskedRgb :: DelayedMask HSVPixel
+            in calcHist maskedHSV
   where
     !maxSize = cMaxImageSize defaultConfig
 
@@ -42,16 +48,17 @@ computeHist !ignoreBack !ignoreSkin !io =
                                 RGBAStorage img -> I.shape img
                                 RGBStorage  img -> I.shape img
 
-    -- Resized original image if larger than the maximum image size.
+    -- Resizes the original image if larger than the maximum image size.
     !io' | h <= maxSize && w <= maxSize = io
          | otherwise                    =
             let !ratio   = max h w % maxSize
                 !newSize = ix2 (round $ fromIntegral h * ratio)
                                (round $ fromIntegral w * ratio)
-                resize = I.resize I.Bilinear newSize
-            in case io of GreyStorage img -> resize img
-                          RGBAStorage img -> resize img
-                          RGBStorage  img -> resize img
+                resize' :: (I.Interpolable (I.ImagePixel i), I.Image i, I.FromFunction i, I.FromFunctionPixel i ~ I.ImagePixel i, Integral (I.ImageChannel i)) => i -> i
+                resize' = I.resize I.Bilinear newSize
+            in case io of GreyStorage img -> GreyStorage $! resize' img
+                          RGBAStorage img -> RGBAStorage $! resize' img
+                          RGBStorage  img -> RGBStorage  $! resize' img
 
     rgb :: RGBImage
     !rgb = I.convert io'
@@ -63,20 +70,22 @@ computeHist !ignoreBack !ignoreSkin !io =
                         else Nothing
         ]
 
-    histogram rgb =
-        let hsv = I.map (shiftHue . I.convert) rgb :: HSVDelayed
-        in Histogram $! H.histogram (Just (cHistSize defaultConfig))
+    toHSV = I.map (shiftHue . I.convert)
+
+    calcHist = H.histogram (Just (cHistSize defaultConfig))
 
     -- Does an && between two masks boolean pixels.
+    andMasks :: Mask -> Mask -> Mask
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
 
+alphaMask :: RGBAImage -> Mask
 alphaMask = I.map (\pix -> I.rgbaAlpha pix == maxBound)
 
+backgroundMask :: StorageImage -> Mask
 backgroundMask img =
     I.map (/= backgroundVal) flooded
   where
-    blurRadius, sobelRadius, cannyLow, cannyHigh :: Int
     blurRadius  = 3
     sobelRadius = 2
     cannyLow    = 64
@@ -88,13 +97,14 @@ backgroundMask img =
     grey, blurred, edges, closed :: GreyImage
     !grey    = I.convert img :: GreyImage
     !blurred = I.apply grey blur
-    !edges   = canny blurred sobelRadius cannyLow cannyHigh
-    !closed  = closure 2 edges
+    !edges   = canny sobelRadius cannyLow cannyHigh blurred
+    !closed  = closing 2 edges
 
-    closure rad img =
-        let img' :: I.GreyImage
-            img' = img `I.apply` I.dilate rad
-        in img' `I.apply` I.erode rad
+    -- Applies a morphological closing of the given radius.
+    closing rad img' =
+        let img'' :: I.GreyImage
+            img'' = img' `I.apply` I.dilate rad
+        in img'' `I.apply` I.erode rad
 
     !flooded = I.create $ do
         mut <- I.thaw closed :: ST s (MutableManifest GreyPixel s)
@@ -104,21 +114,21 @@ backgroundMask img =
         fillIfNotEdge (ix2 0     (w-1)) mut
         return mut
 
-    -- Only fills from the corner if the corner is not an edge.
+    -- Only fills from the point if the point is not on an edge.
     fillIfNotEdge pt mut = do
-        let val = I.read mut pt
-        when (val /= backgroundVal) $
-            I.floodFill pt mut backgroundVal
+        val <- I.read mut pt
+        when (val /= edgeVal) $
+            I.floodFill pt backgroundVal mut
 
     blur :: SeparableFilter GreyPixel Float GreyPixel
     !blur = I.gaussianBlur blurRadius Nothing
 
-    !(Z :. h :. w) = I.shape img
-
-normalize = H.normalize 1.0
+    !(Z :. h :. w) = I.shape grey
 
 -- | Computes the average of a set of histograms. Returns a normalized histogram
 -- (sum hist == 1.0).
+histsAvg :: (Storable a, Real a, Fractional a, Eq sh)
+         => [Histogram sh a] -> Histogram sh a
 histsAvg [hist] = normalize hist
 histsAvg hists  =
     let hists' = map normalize hists

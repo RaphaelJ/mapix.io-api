@@ -1,42 +1,42 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -- | Provides instances for the types from 'ImageIndex.Type'.
 module ImageIndex.Instance () where
 
 import Prelude
 
-import Data.Aeson
+import Control.Arrow
+import Control.Monad
+import qualified Data.Text as T
+import Database.Persist.Sql (PersistFieldSql (..))
+import Text.Parsec (parse)
+import Text.Printf
+import Yesod
 
 import ImageIndex.Type
+import ImageIndex.Tag (tagPathParser, tagPath2Text)
 
 instance Show ImageCode where
     show (ImageCode txt) = show txt
 
 instance Read ImageCode where
     readsPrec n str = map (first ImageCode) (readsPrec n str)
-    readList str = map (first (map ImageCode)) (readList str)
 
-instance ToJSON TagPath where
-    toJSON = String . tagPath2Text
+instance PersistFieldSql ImageCode where
+    sqlType action = sqlType (icValue `liftM` action)
 
-instance FromJSON TagPath where
-    fromJSON (String s) | Right tag <- parse tagPathParser "" s = return tag
-    fromJSON _                                                  = mzero
+instance Show TagPath where
+    show = T.unpack . tagPath2Text
 
-instance Eq Tag where
-    (==)    = (==)    `on` tType
+instance PathPiece TagPath where
+    fromPathPiece txt =
+        case parse tagPathParser "" txt of Right path -> Just path
+                                           Left _     -> Nothing
 
-instance Ord Tag where
-    compare = compare `on` tType
+    toPathPiece = tagPath2Text
 
-instance ToJSON Tag where
-    toJSON (Tag _ subs _) = array subs
-
-instance ToJSON Image where
-    toJSON Image {..} =
-        object $ [
-              "id"     .= iHmac
-            , "tags"   .= tags
-            , "colors" .= histColor iHist
-            ] ++ mName
-      where
-        mName | Just name <- iName = [ "name" .= name ]
-              | otherwise          = []
+instance Show TagExpression where
+    show (TagName name)       = show name
+    show (TagNot expr)        = printf "!(%s)" (show expr)
+    show (TagAnd expr1 expr2) = printf "(%s) && (%s)" (show expr1) (show expr2)
+    show (TagOr  expr1 expr2) = printf "(%s) || (%s)" (show expr1) (show expr2)

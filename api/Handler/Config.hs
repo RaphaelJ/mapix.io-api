@@ -1,6 +1,8 @@
 module Handler.Config (Config (..), defaultConfig) where
 
-data Config {
+import Prelude
+
+data Config = Config {
       cMaxFileSize :: Int -- ^ Maximum file size of a side of an image.
     }
 

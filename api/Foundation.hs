@@ -2,14 +2,13 @@ module Foundation where
 
 import Prelude
 import qualified Data.ByteString.Lazy as B
-import Data.Text (Text)
 import Database.Persist.Sql (SqlPersistT)
 import Network.HTTP.Conduit (Manager)
 import Yesod
 import Yesod.Core.Types (Logger)
 import Yesod.Default.Config
 
-import ImageIndex.Type (ImageIndex)
+import ImageIndex (ImageIndex, ImageCode, TagPath)
 import Settings (Extra (..))
 import qualified Settings
 import Settings.Development (development)

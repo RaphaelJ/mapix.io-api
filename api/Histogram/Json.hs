@@ -1,2 +1,0 @@
-module Histogram.Json () where
-

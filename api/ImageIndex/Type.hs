@@ -4,21 +4,19 @@ import Prelude
 
 import Control.Concurrent.STM.TVar (TVar)
 import Data.Function
-import Data.Int
 import Data.Map.Strict (Map)
 import Data.Set (Set)
+import Data.String
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
-import Database.Persist.Sql (PersistFieldSql)
 import qualified Vision.Histogram as H
-import Vision.Primitive (DIM3, DIM5)
+import Vision.Primitive (DIM3)
 import Yesod
 
 -- | ImageCodes are unique randomly generated identifiers used to identify
 -- images.
-newtype ImageCode = ImageCode Text
-    deriving (Eq, Ord, IsString, PersistField, PersistFieldSql, PathPiece
-            , ToJSON)
+newtype ImageCode = ImageCode { icValue :: Text }
+    deriving (Eq, Ord, IsString, PersistField, PathPiece, ToJSON)
 
 data ImageIndex = ImageIndex {
       iiUsers     :: !(TVar (Map UserName UserIndex))
@@ -50,7 +48,8 @@ data UserIndex = UserIndex {
 -- string). It contains only images which aren't registered to any tag.
 -- The SubTag is used for "real" tags of the hierarchy.
 
-newtype TagPath = TagPath [Text]
+newtype TagPath = TagPath { tpNodes :: [Text] }
+    deriving (Eq, Ord, Read)
 
 data TagType = RootTag | SubTag !Text !Tag -- ^ Tag\'s name and sub-tag.
     deriving (Eq, Ord)
@@ -62,6 +61,18 @@ data Tag = Tag {
     , tImages  :: !(TVar (Set Image))
     }
 
+instance Eq Tag where
+    (==)    = (==)    `on` tType
+
+instance Ord Tag where
+    compare = compare `on` tType
+
+-- | Conditional tag expression.
+data TagExpression = TagName TagPath
+                   | TagNot  TagExpression
+                   | TagAnd  TagExpression TagExpression
+                   | TagOr   TagExpression TagExpression
+
 data Image = Image {
       iCode :: !ImageCode
     , iName :: !(Maybe Text)
@@ -69,5 +80,5 @@ data Image = Image {
     , iHist :: !Histogram
     } deriving (Eq, Ord)
 
-newtype Histogram = Histogram { hHist :: !(H.Histogram DIM3 Float) }
+newtype Histogram = Histogram { hHist :: H.Histogram DIM3 Float }
     deriving (Eq, Ord)

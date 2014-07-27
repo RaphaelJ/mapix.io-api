@@ -46,5 +46,5 @@ maxIndexSize MashapeCustom  = Nothing
 -- | Sets the X-Mashape-Billing header to the given list of values.
 setBilling :: [(Text, Int)] -> Handler ()
 setBilling xs =
-    let val = T.intercalate ";" [ name <> "| (name, n) <- xs 
+    let val = T.intercalate ";" [ name <> (T.pack $ show n) | (name, n) <- xs ]
     in addHeader "X-Mashape-Billing" val

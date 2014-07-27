@@ -2,25 +2,31 @@
 module Handler.Json () where
 
 import Prelude
+
 import Control.Monad
+import qualified Data.HashMap.Strict as H
 import qualified Data.Set as S
 import Text.Parsec.Text (char, count, optional, parse, satisfy)
 import Yesod.Core.Json
 
 import Handler.Tag (tagPath)
 import Handler.Type
-import Histogram.Color
+import Histogram (Color (..), ImageWithColors (..), histColor)
 
 instance ToJSON Image where
     toJSON Image {..} =
         object $ [
               "id"     .= iHmac
             , "tags"   .= tags
-            , "colors" .= histColor iHist
             ] ++ mName
       where
         mName | Just name <- iName = [ "name" .= name ]
               | otherwise          = []
+
+instance ToJSON ImageWithColors where
+    toJSON (ImageWithColors img) =
+        let Object imgJson = toJSON img
+        in Object $! H.insert "colors" (histColor iHist) imgJson
 
 instance ToJSON (Color w) where
     toJSON (Color rgb@(RGBPixel r g b) w) =
@@ -74,3 +80,4 @@ instance ToJSON TagPath where
 instance FromJSON TagPath where
     fromJSON (String s) | Right tag <- parse tagPathParser "" s = return tag
     fromJSON _                                                  = mzero
+

@@ -1,13 +1,13 @@
 module Model where
 
 import Prelude
-import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Vision.Histogram as H
-import Vision.Primitive (DIM5)
+import Vision.Primitive (DIM3)
 import Yesod
 
 import ImageIndex (ImageCode)
+import Histogram.Serialize ()
 
 share [mkPersist sqlOnlySettings, mkMigrate "migrateAll"] [persistLowerCase|
 User
