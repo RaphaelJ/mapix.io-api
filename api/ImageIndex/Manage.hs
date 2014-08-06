@@ -20,11 +20,12 @@ import Control.Concurrent.STM (
       modifyTVar', newTVar, newTVarIO, readTVar, writeTVar
     )
 import Control.Monad
-import Control.Monad.STM
+import Control.Monad.STM (STM)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as C
 import Data.Digest.Pure.SHA (hmacSha1, integerDigest)
 import Data.Digits (digits)
+import qualified Data.Foldable as F
 import Data.Int
 import qualified Data.Map as M
 import Data.Monoid
@@ -114,12 +115,12 @@ removeTag ui tag@(Tag (SubTag name parent) _ _) = do
     removeTagIfOrphan parent
   where
     dfs tag'@(Tag {..}) = do
-        readTVar tSubTags >>= (mapM_ dfs . M.elems)
+        readTVar tSubTags >>= (F.mapM_ dfs)
 
         imgs <- readTVar tImages
-        forM_ (S.toList imgs) $ \img -> do
+        F.forM_ imgs $ \img -> do
             unBindImage ui img
-            bindImage ui img { iTags = S.delete tag' (iTags img) }
+            bindImage ui img { iiTags = S.delete tag' (iiTags img) }
 
 -- | Removes the tag if and only if there is no more image in this tag and in
 -- all of its children. Removes the parent tag if this last become orphan too.
@@ -142,7 +143,7 @@ removeTagIfOrphan tag@(Tag (SubTag name parent) _ _) = do
                               else return False
 
 -- | Returns the set of images of the given tag and of its children.
-getTagImages :: Tag -> STM (Set Image)
+getTagImages :: Tag -> STM (Set IndexedImage)
 getTagImages tag =
     S.unions <$> dfs [] tag
   where
@@ -186,52 +187,53 @@ newImageCode key ui@(UserIndex {..}) gen = do
 -- Images ----------------------------------------------------------------------
 
 addImage :: RandomGen g
-        => ByteString -> UserIndex -> g -> Maybe Text -> [Tag] -> Histogram
-        -> STM (Image, g)
+        => ByteString -> UserIndex -> g -> Maybe Text -> [Tag]
+        -> IndexedHistogram
+        -> STM (IndexedImage, g)
 addImage key ui@(UserIndex {..}) gen name tags hist = do
     (code, gen') <- newImageCode key ui gen
-    let !img = Image code name (S.fromList tags) hist
+    let !img = IndexedImage code name (S.fromList tags) hist
     bindImage ui img
     return (img, gen')
 
-lookupImage :: UserIndex -> ImageCode -> STM (Maybe Image)
+lookupImage :: UserIndex -> ImageCode -> STM (Maybe IndexedImage)
 lookupImage UserIndex {..} code = M.lookup code <$> readTVar uiImages
 
 -- | Unbinds the given image from the given user and from all its tags so it's
 -- no more referenced in the index. Removes tags which don't have any image
 -- pointing them. Similar to 'unBindImage' but removes orphan tags.
-removeImage :: UserIndex -> Image -> STM ()
-removeImage ui img@(Image {..}) = do
+removeImage :: UserIndex -> IndexedImage -> STM ()
+removeImage ui img@(IndexedImage {..}) = do
     unBindImage ui img
-    mapM_ removeTagIfOrphan (S.toList iTags)
+    F.mapM_ removeTagIfOrphan iiTags
 
 -- | Links the image to the given user and all its tags.
-bindImage :: UserIndex -> Image -> STM ()
-bindImage UserIndex {..} img@(Image {..}) = do
-    modifyTVar' uiImages (M.insert iCode img)
-    if S.null iTags then bindImageTag img uiRootTag
-                    else mapM_ (bindImageTag img) (S.toList iTags)
+bindImage :: UserIndex -> IndexedImage -> STM ()
+bindImage UserIndex {..} img@(IndexedImage {..}) = do
+    modifyTVar' uiImages (M.insert iiCode img)
+    if S.null iiTags then bindImageTag img uiRootTag
+                     else F.mapM_ (bindImageTag img) iiTags
 
 -- | Unbinds the given image from the given user and from all its tags so it's
 -- no more referenced in the index.
-unBindImage :: UserIndex -> Image -> STM ()
-unBindImage UserIndex {..} img@(Image {..}) = do
-    modifyTVar' uiImages (M.delete iCode)
-    if S.null iTags then unBindImageTag img uiRootTag
-                    else mapM_ (unBindImageTag img) (S.toList iTags)
+unBindImage :: UserIndex -> IndexedImage -> STM ()
+unBindImage UserIndex {..} img@(IndexedImage {..}) = do
+    modifyTVar' uiImages (M.delete iiCode)
+    if S.null iiTags then unBindImageTag img uiRootTag
+                     else F.mapM_ (unBindImageTag img) iiTags
 
--- | Creates a link between the tag and the image. The 'Image' object is not
--- modified.
-bindImageTag :: Image -> Tag -> STM ()
+-- | Creates a link between the tag and the image. The 'IndexedImage' object is
+-- not modified.
+bindImageTag :: IndexedImage -> Tag -> STM ()
 bindImageTag img Tag {..} = modifyTVar' tImages (S.insert img)
 
--- | Removes the link between the tag and the image. The 'Image' object is not
--- modified.
-unBindImageTag :: Image -> Tag -> STM ()
+-- | Removes the link between the tag and the image. The 'IndexedImage' object
+-- is not modified.
+unBindImageTag :: IndexedImage -> Tag -> STM ()
 unBindImageTag img Tag {..} = modifyTVar' tImages (S.delete img)
 
 -- | Returns the set of images of the user.
-getImages :: UserIndex -> STM (Set Image)
+getImages :: UserIndex -> STM (Set IndexedImage)
 getImages = getTagImages . uiRootTag
 
 -- Last called queue -----------------------------------------------------------

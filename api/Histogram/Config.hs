@@ -1,16 +1,12 @@
-module Histogram.Config (Config (..), defaultConfig) where
+module Histogram.Config (confHistSize, confMaxImageSize) where
 
 import Prelude
 
 import Vision.Primitive (DIM3, ix3)
 
-data Config = Config {
-      cMaxImageSize :: Int  -- ^ Maximum size of a side of an image.
-    , cHistSize     :: DIM3
-    }
+confHistSize :: DIM3
+confHistSize     = ix3 8 4 4
 
-defaultConfig :: Config
-defaultConfig = Config {
-      cMaxImageSize = 480
-    , cHistSize     = ix3 8 4 4
-    }
+-- | Maximum size of a side of an image.
+confMaxImageSize :: Int
+confMaxImageSize = 480

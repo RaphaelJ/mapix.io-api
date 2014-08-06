@@ -21,14 +21,15 @@ import Vision.Image (
     , SeparableFilter, StorageImage (..)
     )
 import qualified Vision.Image as I
-import Vision.Primitive (Z (..), (:.) (..), DIM3, ix2)
+import Vision.Primitive (Z (..), (:.) (..), ix2)
 
 import Histogram.Color (normalize, shiftHue)
-import Histogram.Config (cMaxImageSize, cHistSize, defaultConfig)
+import Histogram.Config (confHistSize, confMaxImageSize)
+import ImageIndex (IndexedHistogram)
 
 type Mask = Manifest Bool
 
-computeHist :: Bool -> Bool -> StorageImage -> Histogram DIM3 Float
+computeHist :: Bool -> Bool -> StorageImage -> IndexedHistogram
 computeHist !ignoreBack !ignoreSkin !io =
     if null masks
        then let hsv = toHSV rgb :: HSVDelayed
@@ -42,16 +43,14 @@ computeHist !ignoreBack !ignoreSkin !io =
                 maskedHSV = toHSV maskedRgb :: DelayedMask HSVPixel
             in calcHist maskedHSV
   where
-    !maxSize = cMaxImageSize defaultConfig
-
     !(Z :. h :. w) = case io of GreyStorage img -> I.shape img
                                 RGBAStorage img -> I.shape img
                                 RGBStorage  img -> I.shape img
 
     -- Resizes the original image if larger than the maximum image size.
-    !io' | h <= maxSize && w <= maxSize = io
+    !io' | h <= confMaxImageSize && w <= confMaxImageSize = io
          | otherwise                    =
-            let !ratio   = max h w % maxSize
+            let !ratio   = max h w % confMaxImageSize
                 !newSize = ix2 (round $ fromIntegral h * ratio)
                                (round $ fromIntegral w * ratio)
                 resize' :: (I.Interpolable (I.ImagePixel i), I.Image i, I.FromFunction i, I.FromFunctionPixel i ~ I.ImagePixel i, Integral (I.ImageChannel i)) => i -> i
@@ -72,7 +71,7 @@ computeHist !ignoreBack !ignoreSkin !io =
 
     toHSV = I.map (shiftHue . I.convert)
 
-    calcHist = H.histogram (Just (cHistSize defaultConfig))
+    calcHist = H.histogram (Just confHistSize)
 
     -- Does an && between two masks boolean pixels.
     andMasks :: Mask -> Mask -> Mask

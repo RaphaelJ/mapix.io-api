@@ -15,12 +15,16 @@ import qualified Vision.Histogram as H
 import Vision.Image (RGBPixel (..), HSVPixel (..), convert)
 import Vision.Primitive (Z (..), (:.) (..), DIM3, shapeLength, toLinearIndex)
 
-import Histogram.Config (Config (cHistSize), defaultConfig)
-import ImageIndex (Image)
+import Histogram.Config (confHistSize)
+import ImageIndex (IndexedImage, IndexedHistogram)
 
--- | The JSON instance of this 'Image' wrapper will also display the main colors
--- of the image.
-newtype ImageWithColors = ImageWithColors Image
+-- | The JSON instance of this 'IndexedImage' wrapper will also display the main
+-- colors of the image.
+data ImageWithColors = ImageWithColors {
+      iwcImage  :: IndexedImage
+    , iwcMinVal :: Float -- ^ Ignores colors which weight less than the given
+                         -- value.
+    }
 
 -- | The color with its weight.
 data Color w = Color {
@@ -44,30 +48,30 @@ shiftHue pix@(HSVPixel {..}) = pix {
 {-# INLINE shiftHue #-}
 
 -- | Returns the primary RGB colors of the histogram, sorted by their decreasing
--- weight. Ignores colors with a weight less than the given value.
+-- weight. Ignores colors which weight less than the given value.
 histColors :: (Ord a, Storable a) => Histogram DIM3 a -> a -> [Color a]
 histColors !hist !minVal =
     sortBy (flip compare `on` cWeight) [ Color (convert $ histBinColor ix) v
                                        | (ix, v) <- H.assocs hist, v >= minVal ]
-{-# SPECIALIZE histColors :: Histogram DIM3 Float -> Float -> [Color Float] #-}
+{-# SPECIALIZE histColors :: IndexedHistogram -> Float -> [Color Float] #-}
 
 -- | Constructs an hitsogram from the given list of weighted colors.
 colorsHist :: (Fractional a, Real a, Storable a)
-           => DIM3 -> [Color a] -> Histogram DIM3 a
-colorsHist size colors =
-    let initial = V.replicate (shapeLength size) 0
+           => [Color a] -> Histogram DIM3 a
+colorsHist colors =
+    let initial = V.replicate (shapeLength confHistSize) 0
         vec     = V.accum (+) initial [ (toHistLinearIndex rgb, val)
                                       | Color rgb val <- colors ]
-    in normalize $ Histogram size vec
+    in normalize $ Histogram confHistSize vec
   where
     domain = H.domainSize (undefined :: RGBPixel)
 
-    toHistLinearIndex =   toLinearIndex size
-                        . H.toBin size domain
+    toHistLinearIndex =   toLinearIndex confHistSize
+                        . H.toBin confHistSize domain
                         . H.pixToIndex
                         . shiftHue
                         . convert
-{-# SPECIALIZE colorsHist :: DIM3 -> [Color Float] -> Histogram DIM3 Float #-}
+{-# SPECIALIZE colorsHist :: [Color Float] -> IndexedHistogram #-}
 
 -- | Returns the color corresponding to the center of the given histogram bin.
 -- Assumes that the hue has been shifted before the histogram computation (with
@@ -81,7 +85,7 @@ histBinColor !(Z :. h :. s :. v) = HSVPixel (word8 h) (word8 $ s + middleSat)
 
 -- Number of each bins for each channel in the histogram.
 nHue, nSat, nVal :: Int
-Z :. nHue :. nSat :. nVal = cHistSize defaultConfig
+Z :. nHue :. nSat :. nVal = confHistSize
 
 -- Number of different values for each channel.
 maxHue, maxSat, maxVal :: Int

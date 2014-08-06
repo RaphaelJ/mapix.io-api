@@ -9,7 +9,7 @@ import Data.Set (Set)
 import Data.String
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
-import qualified Vision.Histogram as H
+import Vision.Histogram (Histogram)
 import Vision.Primitive (DIM3)
 import Yesod
 
@@ -35,7 +35,7 @@ type UserName = Text
 
 data UserIndex = UserIndex {
       uiName    :: !UserName
-    , uiImages  :: !(TVar (Map ImageCode Image))
+    , uiImages  :: !(TVar (Map ImageCode IndexedImage))
     , uiRootTag :: !Tag
     , uiLRCTime :: !(TVar UTCTime)           -- ^ Last time called.
     , uiLRCPrev :: !(TVar (Maybe UserIndex)) -- ^ More recently called user.
@@ -58,7 +58,7 @@ data Tag = Tag {
       tType    :: !TagType
     , tSubTags :: !(TVar (Map Text Tag))
     -- | Only contains images which are not in sub-tags.
-    , tImages  :: !(TVar (Set Image))
+    , tImages  :: !(TVar (Set IndexedImage))
     }
 
 instance Eq Tag where
@@ -73,12 +73,12 @@ data TagExpression = TagName TagPath
                    | TagAnd  TagExpression TagExpression
                    | TagOr   TagExpression TagExpression
 
-data Image = Image {
-      iCode :: !ImageCode
-    , iName :: !(Maybe Text)
-    , iTags :: !(Set Tag)
-    , iHist :: !Histogram
+type IndexedHistogram = Histogram DIM3 Float
+
+data IndexedImage = IndexedImage {
+      iiCode :: !ImageCode
+    , iiName :: !(Maybe Text)
+    , iiTags :: !(Set Tag)
+    , iiHist :: !IndexedHistogram
     } deriving (Eq, Ord)
 
-newtype Histogram = Histogram { hHist :: H.Histogram DIM3 Float }
-    deriving (Eq, Ord)

@@ -62,7 +62,7 @@ tagExpressionParser =
 -- | Searches for images in the user\'s index which match the given tag
 -- expression. If no 'TagExpression' is given, return the 'RootTag' images.
 -- Returns an empty set if the tag doesn't exist.
-getMatchingImages :: UserIndex -> Maybe TagExpression -> STM (Set Image)
+getMatchingImages :: UserIndex -> Maybe TagExpression -> STM (Set IndexedImage)
 getMatchingImages ui Nothing     = getTagImages (uiRootTag ui)
 getMatchingImages ui (Just expr) =
     go expr

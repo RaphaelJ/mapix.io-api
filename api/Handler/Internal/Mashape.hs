@@ -1,12 +1,14 @@
-module Util.Mashape (
+-- | Utilities to read and write Mashape headers.
+module Handler.Internal.Mashape (
       MashapeSubscription (..), MashapeHeaders (..)
-    , getMashapeHeaders, maxIndexSize
+    , getMashapeHeaders, maxIndexSize, setBilling
     ) where
 
 import Import
 
-import Control.Applicative
+import Data.Maybe (fromJust)
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 
 data MashapeSubscription = MashapeFree  | MashapeBasic | MashapePremium
                          | MashapeUltra | MashapeCustom
@@ -21,20 +23,22 @@ data MashapeHeaders = MashapeHeaders {
 
 getMashapeHeaders :: Handler MashapeHeaders
 getMashapeHeaders =
-    let lookupHeader' name = fromJust <$> lookupHeader name
-        lookupSubscription = do
+    MashapeHeaders <$> lookupHeader' "X-Mashape-Proxy-Secret"
+                   <*> lookupHeader' "X-Mashape-User"
+                   <*> lookupSubscription
+                   <*> lookupHeader' "X-Forwarded-For"
+  where
+    lookupHeader' name = (decodeUtf8 . fromJust) <$> lookupHeader name
+
+    lookupSubscription = do
             header <- lookupHeader' "X-Mashape-Subscription"
             case header of
-                "FREE"    -> MashapeFree
-                "BASIC"   -> MashapeBasic
-                "PREMIUM" -> MashapePremium
-                "ULTRA"   -> MashapeUltra
-                "CUSTOM"  -> MashapeCustom
+                "FREE"    -> return MashapeFree
+                "BASIC"   -> return MashapeBasic
+                "PREMIUM" -> return MashapePremium
+                "ULTRA"   -> return MashapeUltra
+                "CUSTOM"  -> return MashapeCustom
                 _         -> error "Invalid mashape plan."
-    in MashapeHeaders <$> lookupHeader' "X-Mashape-Proxy-Secret"
-                      <*> lookupHeader' "X-Mashape-User"
-                      <*> lookupSubscription
-                      <*> lookupHeader' "X-Forwarded-For"
 
 maxIndexSize :: MashapeSubscription -> Maybe Int
 maxIndexSize MashapeFree    = Just 500

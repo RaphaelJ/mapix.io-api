@@ -1,33 +1,50 @@
 module Handler.Image (
-      getImagesR, postImagesR, getImageR, patchImageR, deleteImageR
+      getImagesR, postImagesR, deleteImagesR
+    , getImageR, deleteImageR
     ) where
 
 import Import
-import Data.Conduit (($$), runResourceT)
-import Data.Conduit.Binary (sinkLbs)
+
+import Control.Monad.STM (atomically)
+import qualified Data.Foldable as F
+import Data.Maybe
 import Data.Time.Clock (getCurrentTime)
+import qualified Data.Set as S
+import Network.HTTP.Types.Status (created201, noContent204)
 import System.Random (newStdGen)
 import Vision.Image (StorageImage)
-import qualified Vision.Image as I
 
-import Handler.Json
-import ImageIndex.Manage
-import Util.Mashape
+import Handler.Error (APIError (IndexExhausted), apiFail)
+import Handler.Internal.Form (
+      filterForm, imagesField, jsonField, tagExpressionField
+    )
+import Handler.Internal.Json ()
+import Handler.Internal.Listing (listing, listingForm)
+import Handler.Internal.Mashape (
+      getMashapeHeaders, maxIndexSize, mhSubscription, mhUser
+    )
+import ImageIndex (
+      ImageCode, IndexedImage (..), TagPath
+    , addImage, getMatchingImages, getTag, getUserIndex, lookupImage
+    , removeImage, touchUserIndex, userIndexSize
+    )
+import Histogram (histsAvg, computeHist)
 
 -- | Lists every image of the user.
 getImagesR :: Handler Value
 getImagesR = do
-    Listing tagExpr count <- runInputGet listingForm
+    listingParams <- runInputGet listingForm
+    tagExpr       <- runInputGet filterForm
 
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
 
-    imgs <- atomically $ do
-        ui <- getUserIndex ii userName currentTime
+    imgs <- liftIO $ atomically $ do
+        ui <- getUserIndex ii username currentTime
         getMatchingImages ui tagExpr
 
-    returnJson $ take (fromMaybe 100 count) imgs
+    returnJson $ listing listingParams (Just $! S.size imgs) (S.toList imgs)
 
 data NewImage = NewImage {
       niName       :: Maybe Text
@@ -44,36 +61,38 @@ postImagesR :: Handler Value
 postImagesR = do
     NewImage {..} <- runInputPost newImageForm
 
-    let !hist = histsAvg $ map (compute niIgnoreBack niIgnoreSkin) niImages
+    let !hist = histsAvg $ map (computeHist niIgnoreBack niIgnoreSkin) niImages
 
     headers     <- getMashapeHeaders
-    let userName = mhUser headers
+    let username = mhUser headers
         maxSize  = maxIndexSize $ mhSubscription headers
 
     app         <- getYesod
-    let key = encryptKey yesod
-        ii  = imageIndex yesod
+    let key = encryptKey app
+        ii  = imageIndex app
 
     currentTime <- lift getCurrentTime
     gen         <- lift newStdGen
 
     -- Tries to add the image. Returns Nothing if the index has too
     -- many images.
-    mImg <- atomically $ do
+    mImg <- liftIO $ atomically $ do
         ui   <- getUserIndex ii username currentTime
         size <- userIndexSize ui
 
-        if size < maxSize
-            then do
-                tags     <- mapM (getTag ui) niTags
-                (img, _) <- addImage key ui gen name tags hist
+        let indexIsFull = maybe False (size >=) maxSize
+
+        if indexIsFull
+            then return Nothing 
+            else do
+                tags     <- mapM (getTag ui) (fromMaybe [] niTags)
+                (img, _) <- addImage key ui gen niName tags hist
                 touchUserIndex ii ui currentTime
                 return $! Just img
-            else return Nothing
 
     case mImg of
         Just img -> do
-            url <- getUrlRender <*> pure (ImageR $! iCode img)
+            url <- getUrlRender <*> pure (ImageR $! iiCode img)
             addHeader "Location" url
             sendResponseStatus created201 (toJSON img)
         Nothing  -> apiFail IndexExhausted
@@ -96,10 +115,10 @@ deleteImagesR = do
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
 
-    atomically $ do
-        ui   <- getUserIndex ii userName currentTime
+    liftIO $ atomically $ do
+        ui   <- getUserIndex ii username currentTime
         imgs <- getMatchingImages ui tagExpr
-        mapM (removeImage ui) imgs
+        F.mapM_ (removeImage ui) imgs
 
     sendResponseStatus noContent204 ()
 
@@ -111,8 +130,8 @@ getImageR code = do
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
 
-    mImg <- atomically $ do
-        ui <- getUserIndex ii userName currentTime
+    mImg <- liftIO $ atomically $ do
+        ui <- getUserIndex ii username currentTime
         lookupImage ui code
 
     case mImg of Just img -> returnJson img
@@ -126,20 +145,11 @@ deleteImageR code = do
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
 
-    exists <- atomically $ do
-        ui <- getUserIndex ii userName currentTime
+    exists <- liftIO $ atomically $ do
+        ui <- getUserIndex ii username currentTime
         mImg <- lookupImage ui code
         case mImg of Just img -> removeImage ui img >> return True
                      Nothing  -> return False
 
     if exists then sendResponseStatus noContent204 ()
               else notFound
-
-data Listing = Listing {
-      lFilter :: Maybe TagExpression
-    , lCount  :: Maybe Int
-    }
-
-listingForm =
-    Listing <$> iopt tagExpressionField "filter"
-            <*> iopt countField         "count"

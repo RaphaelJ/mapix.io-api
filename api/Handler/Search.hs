@@ -4,14 +4,29 @@ module Handler.Search (
 
 import Import
 
-import Control.Monad
+import Control.Monad.STM (atomically)
+import Data.Function
+import Data.List
 import Data.Maybe
-import qualified Data.Vector as V
+import qualified Data.Set as S
+import Data.Time.Clock (getCurrentTime)
 
-import Handler.Json ()
-import Histogram.Color (colorsHist)
-import Histogram.Compare (compareHist)
-import Histogram.Compute ()
+import Handler.Config (confDefaultMinScore)
+import Handler.Error (APIError (IndexExhausted), apiFail)
+import Handler.Internal.Form (
+      ImagesForm (..), imagesForm, filterForm
+    , jsonField, scoreField
+    )
+import Handler.Internal.Listing (listing, listingForm)
+import Handler.Internal.Mashape (
+      getMashapeHeaders, maxIndexSize, mhUser, mhSubscription
+    )
+import Handler.Internal.Json ()
+import Handler.Internal.Type (SearchResult (..))
+import Histogram (colorsHist, compareHist, computeHist, histsAvg)
+import ImageIndex (
+      IndexedHistogram, getMatchingImages, getUserIndex, iiHist, userIndexSize
+    )
 
 postColorSearchR :: Handler Value
 postColorSearchR = do
@@ -20,47 +35,42 @@ postColorSearchR = do
   where
     colorsField = jsonField "Invalid colors expression"
 
-data ImageSearch = ImageSearch {
-      isImages     :: [StorageImage]
-    , isIgnoreBack :: Bool
-    , isIgnoreSkin :: Bool
-    }
-
 postImageSearchR :: Handler Value
 postImageSearchR = do
-    ImageSearch imgs ignoreBack ignoreSkin <- runInputPost imageSearchForm
-    search $ histsAvg $ map (compute ignoreBack ignoreSkin) imgs
-  where
-    imageSearchForm = ImageSearch <$> ireq imagesField   "image"
-                                  <*> ireq checkBoxField "ignore_background"
-                                  <*> ireq checkBoxField "ignore_skin"
+    ImagesForm {..} <- runInputPost imagesForm
+    search $ histsAvg $ map (computeHist ifIgnoreBack ifIgnoreSkin) ifImages
 
-data ResultLising = ResultLising {
-      rlFilter :: Maybe TagExpression
-    , rlCount  :: Maybe Int
-    , rlMin    :: Maybe Double
-    }
-
-search :: Histogram DIM3 Float -> Handler Value
+search :: IndexedHistogram -> Handler Value
 search hist = do
-    ResultLising tagExpr count minScore <- runInputPost resultListingForm
+    listingParams <- runInputPost listingForm
+    tagExpr       <- runInputPost filterForm
+    minScore      <- runInputPost (iopt scoreField "min_score")
 
-    username    <- mhUser <$> getMashapeHeaders
+    headers     <- getMashapeHeaders
+    let username = mhUser headers
+        maxSize  = maxIndexSize $ mhSubscription headers
+
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
 
-    imgs <- atomically $ do
-        ui <- getUserIndex ii userName currentTime
-        getMatchingImages ui tagExpr
+    mImgs <- liftIO $ atomically $ do
+        ui <- getUserIndex ii username currentTime
+        size <- userIndexSize ui
 
-    let results = [ SearchResult img score
-                  | img <- imgs
-                  , let score = compareHist hist (hHist img)
-                  , score >= minScore ]
-        sorted  = sortBy (flip compare `on` srScore) results
+        let indexIsFull = maybe False (size >) maxSize
 
-    returnJson $ take (fromMaybe 100 count) sorted
+        if indexIsFull then return Nothing
+                       else Just <$> getMatchingImages ui tagExpr
 
-resultListingForm = ResultLising <$> iopt tagExpressionField "filter"
-                                 <*> iopt countField         "count"
-                                 <*> iopt scoreField         "min_score"
+    case mImgs of
+        Just imgs -> do
+            let minScore' = fromMaybe confDefaultMinScore minScore
+                results   = [ SearchResult img score
+                            | img <- S.toList imgs
+                            , let score = compareHist hist (iiHist img)
+                            , score >= minScore' ]
+                !nResults = length results
+                sorted    = sortBy (flip compare `on` srScore) results
+
+            returnJson $ listing listingParams (Just nResults) sorted
+        Nothing   -> apiFail IndexExhausted

@@ -18,7 +18,7 @@ import System.FilePath ((</>), takeFileName)
 import Text.Printf
 import Vision.Histogram (Histogram, ToHistogram (..))
 import qualified Vision.Histogram as H
-import Vision.Image (Image (..), HSVImage, HSVPixel (..), RGBImage)
+import Vision.Image (Image (..), ImagePixel, HSVImage, HSVPixel (..), RGBImage)
 import qualified Vision.Image as I
 import Vision.Primitive
 
@@ -87,8 +87,8 @@ main = do
             let hsvs      = map (second ((shiftHue 8) . toHSV)) rgbs
                 hsvs'     = map (second (toHSV)) rgbs
                 shsvs     = map (second (resize 320)) hsvs
-                sshsvs     = map (second (resize 240)) hsvs
-                ssshsvs     = map (second (resize 160)) hsvs
+                sshsvs    = map (second (resize 240)) hsvs
+                ssshsvs   = map (second (resize 160)) hsvs
                 hist3D    = ix5 8 10 7 1 1
                 hist5D    = ix5 8 10 7 3 3
                 hsvHist3D = ix5 8 4 4 1 1
@@ -158,8 +158,8 @@ main = do
 
         files <- listFiles dir
         forM files $ \filename -> do
-            Right img <- I.load filename Nothing
-            let rgb   = I.convert img :: RGBImage
+            Right img <- I.load Nothing filename
+            let rgb = I.convert img :: RGBImage
             return (Tag filename catName, rgb)
 
     resize maxImageSize img
@@ -167,7 +167,7 @@ main = do
             let !ratio = maxSide % maxImageSize
                 !w'    = round $ w % 1 * ratio
                 !h'    = round $ h % 1 * ratio
-                !img'  = I.resize img I.Bilinear (Z :. h' :. w')
+                !img'  = I.resize I.Bilinear (Z :. h' :. w') img
             in img'
         | otherwise              = img
       where
@@ -225,9 +225,9 @@ calcHists :: (Image i, ToHistogram (ImagePixel i)
           -> [(Tag, Histogram (sh :. Int :. Int) norm)]
 calcHists imgs Config { .. } =
     let calcHist img =
-            confHistNorm $ normalize' $ H.histogram2D img confHistSize
+            confHistNorm $ normalize' $ H.histogram2D confHistSize img
         normalize' :: Histogram sh Int32 -> Histogram sh Double
-        normalize' hist = H.normalize hist 1.0
+        normalize' = H.normalize 1.0
     in map (second calcHist) imgs
 
 bestMatches :: (Image i, ToHistogram (ImagePixel i)

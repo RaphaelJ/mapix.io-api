@@ -1,10 +1,10 @@
 /images                     ImagesR              GET POST DELETE
 /images/#ImageCode          ImageR               GET DELETE
 
-/search-by-colors           SearchColorsR        POST
-/search-by-image            SearchImageR         POST
+/search-by-colors           ColorSearchR         POST
+/search-by-image            ImageSearchR         POST
 
-/extract-colors             ExtractColorsR       POST
+-- /extract-colors             ExtractColorsR       POST
 
 /tags                       TagsR                GET
 /tags/#TagPath              TagR                 GET DELETE

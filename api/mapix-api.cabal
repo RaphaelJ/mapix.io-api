@@ -16,12 +16,14 @@ library
                      Foundation
                      Handler.Config
                      Handler.Error
-                     Handler.Field
                      Handler.Image
-                     Handler.Json
                      Handler.Search
                      Handler.Tag
-                     Handler.Type
+                     Handler.Internal.Form
+                     Handler.Internal.Json
+                     Handler.Internal.Listing
+                     Handler.Internal.Type
+                     Handler.Internal.Mashape
                      Histogram
                      Histogram.Color
                      Histogram.Compare
@@ -38,7 +40,6 @@ library
                      Model
                      Settings
                      Settings.Development
-                     Util.Mashape
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
@@ -59,6 +60,7 @@ library
                         NoMonomorphismRestriction
                         NoImplicitPrelude
                         MultiParamTypeClasses
+                        PatternGuards
                         RecordWildCards
                         TemplateHaskell
                         TypeFamilies

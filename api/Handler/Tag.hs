@@ -2,65 +2,68 @@ module Handler.Tag (getTagsR, getTagR, deleteTagR) where
 
 import Import
 
-import Prelude
-
-import Control.Concurrent.STM (atomically)
-import Data.Maybe
-import Data.Monoid ((<>))
-import qualified Data.Set as S
-import qualified Data.Text as T
-import Data.Text.Lazy (toStrict)
-import Data.Text.Lazy.Builder (fromText, toLazyText)
+import Control.Concurrent.STM (readTVar)
+import Control.Monad.STM (STM, atomically)
 import Data.Time.Clock (getCurrentTime)
+import Network.HTTP.Types.Status (noContent204)
 
-import ImageIndex.Manage (getUserIndex, getTagImages)
-import ImageIndex.Type
-import Util.Mashape (getMashapeHeaders, mhUser)
+import Handler.Internal.Mashape (getMashapeHeaders, mhUser)
+import Handler.Internal.Json ()
+import Handler.Internal.Type (StaticTag (..))
+import ImageIndex (
+      Tag (..), TagPath, getUserIndex, lookupTag, removeTag, uiRootTag
+    )
 
 -- Handlers --------------------------------------------------------------------
 
 -- | Returns the hierarchy of tags.
-getTagsR :: Handler Html
+getTagsR :: Handler Value
 getTagsR = do
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
 
-    rootTag <- atomically $ do
+    rootTag <- liftIO $ atomically $ do
         ui <- getUserIndex ii username currentTime
-        uiRootTag ui
+        getStaticTag $ uiRootTag ui
 
     returnJson rootTag
 
 -- | Returns the tag and its sub-tags. Fails with a '404 Not Found' error if the
 -- tag doesn't exist.
-getTagR :: TagPath -> Handler Html
+getTagR :: TagPath -> Handler Value
 getTagR path = do
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
 
-    mTag <- atomically $ do
-        ui <- getUserIndex ii username currentTime
-        lookupTag ui path
+    mTag <- liftIO $ atomically $ do
+        ui   <- getUserIndex ii username currentTime
+        mTag <- lookupTag ui path
+        case mTag of Just tag -> Just <$> getStaticTag tag
+                     Nothing  -> return Nothing
 
-    case mTag of Just tag -> returnJson rootTag
-                 _        -> notFound
+    maybe notFound returnJson mTag
 
 -- | Removes this tag and its subtags without removing the images. Returns a
 -- '204 No content' on success. Fails with a '404 Not Found' error if the tag
 -- doesn't exist.
-deleteTagR :: TagPath -> Handler Html
+deleteTagR :: TagPath -> Handler Value
 deleteTagR path = do
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
     currentTime <- lift getCurrentTime
 
-    exists <- atomically $ do
+    exists <- liftIO $ atomically $ do
         ui <- getUserIndex ii username currentTime
         mTag <- lookupTag ui path
         case mTag of Nothing  -> return False
-                     Just tag -> removeTag tag >> return True
+                     Just tag -> removeTag ui tag >> return True
 
     if exists then sendResponseStatus noContent204 ()
               else notFound
+
+-- -----------------------------------------------------------------------------
+
+getStaticTag :: Tag -> STM StaticTag
+getStaticTag Tag {..} = StaticTag tType <$> readTVar tSubTags
