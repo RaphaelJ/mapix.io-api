@@ -165,8 +165,8 @@ newImageCode :: RandomGen g
 newImageCode key ui@(UserIndex {..}) gen = do
     imgs <- readTVar uiImages
     if code `M.member` imgs
-        then return (code, gen'')
-        else newImageCode key ui gen'' -- Already used code, retries.
+        then newImageCode key ui gen'' -- Already used code, retries.
+        else return (code, gen'')
    where
     -- Uses two 64 bits random number to generate a 128 bits random value.
     rand1, rand2 :: Int64
@@ -188,7 +188,7 @@ newImageCode key ui@(UserIndex {..}) gen = do
 
 addImage :: RandomGen g
         => ByteString -> UserIndex -> g -> Maybe Text -> [Tag]
-        -> IndexedHistogram
+        -> HeterogeneousHistogramf
         -> STM (IndexedImage, g)
 addImage key ui@(UserIndex {..}) gen name tags hist = do
     (code, gen') <- newImageCode key ui gen

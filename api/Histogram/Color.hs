@@ -1,6 +1,5 @@
 module Histogram.Color (
-      ImageWithColors (..), Color (..)
-    , normalize, shiftHue, histColors, colorsHist, histBinColor
+      Color (..), normalize, shiftHue, histColors, colorsHist, histBinColor
     ) where
 
 import Prelude
@@ -16,15 +15,7 @@ import Vision.Image (RGBPixel (..), HSVPixel (..), convert)
 import Vision.Primitive (Z (..), (:.) (..), DIM3, shapeLength, toLinearIndex)
 
 import Histogram.Config (confHistSize)
-import ImageIndex (IndexedImage, IndexedHistogram)
-
--- | The JSON instance of this 'IndexedImage' wrapper will also display the main
--- colors of the image.
-data ImageWithColors = ImageWithColors {
-      iwcImage  :: IndexedImage
-    , iwcMinVal :: Float -- ^ Ignores colors which weight less than the given
-                         -- value.
-    }
+import ImageIndex (IndexedHistogram)
 
 -- | The color with its weight.
 data Color w = Color {
@@ -32,18 +23,41 @@ data Color w = Color {
     , cWeight :: !w
     } deriving Show
 
--- | Normalize the histogram so the sum of its values equals 1.
-normalize :: (Storable a, Real a, Fractional a)
-          => Histogram sh a -> Histogram sh a
-normalize = H.normalize 1.0
-{-# SPECIALIZE normalize :: Histogram sh Float -> Histogram sh Float #-}
+newtype ShiftedHSV = ShiftedHSV HSVPixel
+    deriving (Storable, Pixel)
 
--- | Fixs the image color before being mapped to an histogram.
+-- | Normalize the 'HeterogeneousHistogram' so the sum of its values equals 1.
+normalize :: (Storable a, Real a, Fractional a)
+          => HeterogeneousHistogram a -> HeterogeneousHistogram a
+normalize HeterogeneousHistogram {..} =
+    let !sumColors = histSum hhColors
+        !sumGreys  = histSum hhGreys
+        !total     = sumColors + sumGreys
+
+        normalize' s = H.normalize (s / total)
+    in HeterogeneousHistogram (normalize' sumColors hhColors)
+                              (normalize' sumGreys  hhGreys)
+  where
+    histSum = V.sum . H.vector
+{-# SPECIALIZE normalize :: HeterogeneousHistogram Float
+                         -> HeterogeneousHistogram Float #-}
+
+-- | Returns 'True' if the color is to be mapped to the greyscale part of the
+-- 'HeterogeneousHistogram'.
+isGreyscale :: HSVPixel -> Bool
+isGreyscale (HSVPixel _ s v) =    v < confHistColorMinValue
+                               || s < confHistColorMinSat
+
+-- | Fixs the image color before being mapped to the color histogram.
 -- As the hue is divided in the histogram in several bins, we need to shift it
 -- so a perceived color (such as red) fits in the center of a bin.
-shiftHue :: HSVPixel -> HSVPixel
-shiftHue pix@(HSVPixel {..}) = pix {
-      hsvHue = word8 ((int hsvHue + middleHue) `mod` 180)
+shiftHSV :: HSVPixel -> ShiftedHSV
+shiftHSV pix@(HSVPixel {..}) = pix {
+      hsvHue   = word8 ((int hsvHue + middleHue) `mod` 180)
+    , hsvSat   = word8 (  (int hsvSat - confHistColorMinSat)
+                        * 255 `mod` (255 - confHistColorMinSat))
+    , hsvValue = word8 (  (int hsvValue - confHistColorMinValue)
+                        * 255 `mod` (255 - confHistColorMinValue))
     }
 {-# INLINE shiftHue #-}
 
@@ -55,7 +69,7 @@ histColors !hist !minVal =
                                        | (ix, v) <- H.assocs hist, v >= minVal ]
 {-# SPECIALIZE histColors :: IndexedHistogram -> Float -> [Color Float] #-}
 
--- | Constructs an hitsogram from the given list of weighted colors.
+-- | Constructs an histogram from the given list of weighted colors.
 colorsHist :: (Fractional a, Real a, Storable a)
            => [Color a] -> Histogram DIM3 a
 colorsHist colors =
@@ -75,10 +89,12 @@ colorsHist colors =
 
 -- | Returns the color corresponding to the center of the given histogram bin.
 -- Assumes that the hue has been shifted before the histogram computation (with
--- 'shiftHue'). 
+-- 'shiftHue').
 histBinColor :: DIM3 -> HSVPixel
-histBinColor !(Z :. h :. s :. v) = HSVPixel (word8 h) (word8 $ s + middleSat) 
-                                            (word8 $ v + middleVal)
+histBinColor !ix =
+    let domain = H.domainSize (undefined :: HSVPixel)
+        Z :. h :. s :. v = H.toBin domain confHistSize ix
+    in HSVPixel (word8 h) (word8 $ s + middleSat) (word8 $ v + middleVal)
 {-# INLINE histBinColor #-}
 
 -- Constants -------------------------------------------------------------------

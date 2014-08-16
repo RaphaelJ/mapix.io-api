@@ -31,6 +31,7 @@ library
                      Histogram.Compute
                      Histogram.Config
                      Histogram.Serialize
+                     Histogram.Type
                      ImageIndex
                      ImageIndex.Instance
                      ImageIndex.Manage

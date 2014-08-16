@@ -23,9 +23,10 @@ import Handler.Internal.Mashape (
     )
 import Handler.Internal.Json ()
 import Handler.Internal.Type (SearchResult (..))
-import Histogram (colorsHist, compareHist, computeHist, histsAvg)
+import Histogram (colorsHist, compareHist, histsAvg, histCompute)
 import ImageIndex (
-      IndexedHistogram, getMatchingImages, getUserIndex, iiHist, userIndexSize
+      IndexedHistogram
+    , getMatchingImages, getUserIndex, iiHist, touchUserIndex, userIndexSize
     )
 
 postColorSearchR :: Handler Value
@@ -38,7 +39,7 @@ postColorSearchR = do
 postImageSearchR :: Handler Value
 postImageSearchR = do
     ImagesForm {..} <- runInputPost imagesForm
-    search $ histsAvg $ map (computeHist ifIgnoreBack ifIgnoreSkin) ifImages
+    search $ histsAvg $ map (histCompute ifIgnoreBack ifIgnoreSkin) ifImages
 
 search :: IndexedHistogram -> Handler Value
 search hist = do
@@ -59,8 +60,11 @@ search hist = do
 
         let indexIsFull = maybe False (size >) maxSize
 
-        if indexIsFull then return Nothing
-                       else Just <$> getMatchingImages ui tagExpr
+        if indexIsFull
+            then return Nothing
+            else do
+                touchUserIndex ii ui currentTime
+                Just <$> getMatchingImages ui tagExpr
 
     case mImgs of
         Just imgs -> do

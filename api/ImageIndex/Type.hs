@@ -13,6 +13,8 @@ import Vision.Histogram (Histogram)
 import Vision.Primitive (DIM3)
 import Yesod
 
+import Histogram (HeterogeneousHistogram)
+
 -- | ImageCodes are unique randomly generated identifiers used to identify
 -- images.
 newtype ImageCode = ImageCode { icValue :: Text }
@@ -73,12 +75,9 @@ data TagExpression = TagName TagPath
                    | TagAnd  TagExpression TagExpression
                    | TagOr   TagExpression TagExpression
 
-type IndexedHistogram = Histogram DIM3 Float
-
 data IndexedImage = IndexedImage {
       iiCode :: !ImageCode
     , iiName :: !(Maybe Text)
     , iiTags :: !(Set Tag)
-    , iiHist :: !IndexedHistogram
+    , iiHist :: !(HeterogeneousHistogram Float)
     } deriving (Eq, Ord)
-

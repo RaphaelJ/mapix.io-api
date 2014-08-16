@@ -23,12 +23,13 @@ import Handler.Internal.Listing (listing, listingForm)
 import Handler.Internal.Mashape (
       getMashapeHeaders, maxIndexSize, mhSubscription, mhUser
     )
+import Handler.Internal.Type (ImageWithColors (..))
 import ImageIndex (
       ImageCode, IndexedImage (..), TagPath
     , addImage, getMatchingImages, getTag, getUserIndex, lookupImage
     , removeImage, touchUserIndex, userIndexSize
     )
-import Histogram (histsAvg, computeHist)
+import Histogram (histsAvg, histCompute)
 
 -- | Lists every image of the user.
 getImagesR :: Handler Value
@@ -61,7 +62,8 @@ postImagesR :: Handler Value
 postImagesR = do
     NewImage {..} <- runInputPost newImageForm
 
-    let !hist = histsAvg $ map (computeHist niIgnoreBack niIgnoreSkin) niImages
+    let !hist = histsAvg $ map (histCompute niIgnoreBack niIgnoreSkin) niImages
+    liftIO $ print hist
 
     headers     <- getMashapeHeaders
     let username = mhUser headers
@@ -83,7 +85,7 @@ postImagesR = do
         let indexIsFull = maybe False (size >=) maxSize
 
         if indexIsFull
-            then return Nothing 
+            then return Nothing
             else do
                 tags     <- mapM (getTag ui) (fromMaybe [] niTags)
                 (img, _) <- addImage key ui gen niName tags hist
@@ -94,7 +96,7 @@ postImagesR = do
         Just img -> do
             url <- getUrlRender <*> pure (ImageR $! iiCode img)
             addHeader "Location" url
-            sendResponseStatus created201 (toJSON img)
+            sendResponseStatus created201 (toJSON $ ImageWithColors img)
         Nothing  -> apiFail IndexExhausted
   where
     newImageForm = NewImage <$> iopt textField     "name"
@@ -134,7 +136,7 @@ getImageR code = do
         ui <- getUserIndex ii username currentTime
         lookupImage ui code
 
-    case mImg of Just img -> returnJson img
+    case mImg of Just img -> returnJson $ ImageWithColors img
                  Nothing  -> notFound
 
 -- | Returns a '204 No content' on success. Fails with a '404 Not found' error

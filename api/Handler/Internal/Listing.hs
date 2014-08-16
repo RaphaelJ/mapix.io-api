@@ -49,10 +49,12 @@ listingForm = ListingForm <$> iopt countField    "count"
 countField :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
            => Field m Int
 countField =
-    let msg = T.pack $!    "The value can't be higher than "
-                        ++ show confMaxCount
-    in checkBool (<= confMaxCount) msg positiveField
+    let msgMax = T.pack $!    "The value can't be higher than "
+                           ++ show confMaxCount
+        msgMin = "The value must be strictly positive" :: Text
+    in checkBool (<= confMaxCount) msgMax $
+       checkBool (> 0)             msgMin intField
 
 positiveField :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
               => Field m Int
-positiveField = checkBool (< 0) ("Non-positive value" :: Text) intField
+positiveField = checkBool (>= 0) ("Negative value not allowed" :: Text) intField

@@ -21,12 +21,13 @@ import Text.Printf
 import Vision.Image (RGBPixel (..))
 import Yesod.Core.Json
 
+import Handler.Config (confDefaultMinScore)
 import Handler.Internal.Type
 import ImageIndex (
       IndexedImage (..), TagPath (..), TagType (..)
     , tagPath, tagPath2Text, tagPathParser
     )
-import Histogram (Color (..), ImageWithColors (..), histColors)
+import Histogram (Color (..), histColors)
 
 instance ToJSON IndexedImage where
     toJSON IndexedImage {..} =
@@ -38,9 +39,9 @@ instance ToJSON IndexedImage where
         mName = maybe [] (\name -> [ "name" .= name ]) iiName
 
 instance ToJSON ImageWithColors where
-    toJSON (ImageWithColors img minVal) =
+    toJSON (ImageWithColors img) =
         let Object imgJson = toJSON img
-            colors         = histColors (iiHist img) minVal
+            colors         = histColors (iiHist img) confDefaultMinScore
         in Object $! H.insert "colors" (toJSON colors) imgJson
 
 instance ToJSON w => ToJSON (Color w) where

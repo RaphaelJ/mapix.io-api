@@ -8,6 +8,10 @@ import Data.Text (Text)
 
 import ImageIndex (IndexedImage, Tag, TagType)
 
+-- | The JSON instance of this 'IndexedImage' wrapper will also display the main
+-- colors of the image.
+newtype ImageWithColors = ImageWithColors IndexedImage
+
 data SearchResult = SearchResult {
       srImage :: IndexedImage
     , srScore :: Float

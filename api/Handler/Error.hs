@@ -8,45 +8,56 @@ import Prelude
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
+import Network.HTTP.Types.Method (Method)
 import Network.HTTP.Types.Status (
-      Status, mkStatus, badRequest400, notFound404, unsupportedMediaType415
+      Status (statusCode), mkStatus, badRequest400, notFound404
+    , methodNotAllowed405, unsupportedMediaType415, internalServerError500
     )
 import Yesod hiding (NotFound)
 
 data APIError = BadRequest [Text]
               | NotFound
+              | MethodNotAllowed Method
               | InvalidImage
               | IndexExhausted
+              | InternalServerError Text
     deriving Show
 
 errorCode :: APIError -> Int
-errorCode (BadRequest _) = 1
-errorCode NotFound       = 2
-errorCode InvalidImage   = 3
-errorCode IndexExhausted = 4
+errorCode = statusCode . errorHttpStatus
 
 errorName :: APIError -> Text
-errorName (BadRequest _) = "BAD-REQUEST"
-errorName NotFound       = "NOT-FOUND"
-errorName InvalidImage   = "INVALID-IMAGE"
-errorName IndexExhausted = "INDEX-EXHAUSTED"
+errorName (BadRequest _)          = "BAD-REQUEST"
+errorName NotFound                = "NOT-FOUND"
+errorName (MethodNotAllowed _)    = "METHOD-NOT-ALLOWED"
+errorName InvalidImage            = "INVALID-IMAGE"
+errorName IndexExhausted          = "INDEX-EXHAUSTED"
+errorName (InternalServerError _) = "INTERNAL-SERVER-ERROR"
 
 errorMessage :: APIError -> Maybe Text
-errorMessage (BadRequest errs) =
-    let errsTxt = T.intercalate ", " errs
-    in Just $! "The you submitted an inccorect request: " <> errsTxt
+errorMessage (BadRequest msgs) =
+    let msgsTxt = T.intercalate ", " msgs
+    in Just $ "The you submitted an incorrect request: " <> msgsTxt
 errorMessage NotFound =
     Just "The resource you are looking for doesn't exist"
+errorMessage (MethodNotAllowed method) =
+    Just $ "Method not allowed: " <> decodeUtf8 method
 errorMessage InvalidImage =
     Just "Unable to read the image format"
 errorMessage IndexExhausted =
     Just "Your index has too many images"
+errorMessage (InternalServerError msg) =
+    Just $ "An unexpected error occurred during the execution of your request: "
+           <> msg
 
 errorHttpStatus :: APIError -> Status
-errorHttpStatus (BadRequest _) = badRequest400
-errorHttpStatus NotFound       = notFound404
-errorHttpStatus InvalidImage   = unsupportedMediaType415
-errorHttpStatus IndexExhausted = mkStatus 429 "Too Many Requests"
+errorHttpStatus (BadRequest _)          = badRequest400
+errorHttpStatus NotFound                = notFound404
+errorHttpStatus (MethodNotAllowed _)    = methodNotAllowed405
+errorHttpStatus InvalidImage            = unsupportedMediaType415
+errorHttpStatus IndexExhausted          = mkStatus 429 "Too Many Requests"
+errorHttpStatus (InternalServerError _) = internalServerError500
 
 -- | Bypass remaining handler code and output the given error as JSON.
 apiFail :: MonadHandler m => APIError -> m a

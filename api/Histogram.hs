@@ -4,6 +4,7 @@ module Histogram (
     , module Histogram.Compress
     , module Histogram.Compute
     , module Histogram.Config
+    , module Histogram.Type
     ) where
 
 import Histogram.Color
@@ -12,3 +13,4 @@ import Histogram.Compress
 import Histogram.Compute
 import Histogram.Config
 import Histogram.Serialize ()
+import Histogram.Type

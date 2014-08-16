@@ -8,6 +8,7 @@ import Yesod
 import Yesod.Core.Types (Logger)
 import Yesod.Default.Config
 
+import qualified Handler.Error as E
 import ImageIndex (ImageIndex, ImageCode, TagPath)
 import Settings (Extra (..))
 import qualified Settings
@@ -34,12 +35,22 @@ type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
 instance Yesod App where
     approot = ApprootMaster $ appRoot . settings
 
+    errorHandler err =
+        E.apiFail $ case err of
+                        NotFound           -> E.NotFound
+                        InternalError msg  -> E.InternalServerError msg
+                        InvalidArgs msgs   -> E.BadRequest msgs
+                        NotAuthenticated   -> undefined
+                        PermissionDenied _ -> undefined
+                        BadMethod method   -> E.MethodNotAllowed method
+
     makeSessionBackend _ = return Nothing
+
+    makeLogger = return . appLogger
 
     shouldLog _ _source level =
         development || level == LevelWarn || level == LevelError
 
-    makeLogger = return . appLogger
 
 instance YesodPersist App where
     type YesodPersistBackend App = SqlPersistT

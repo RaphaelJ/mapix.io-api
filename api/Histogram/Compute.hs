@@ -1,6 +1,6 @@
 -- | Computes the histogram from an image. Optionally removes the 
 module Histogram.Compute (
-      computeHist, histsAvg
+      histsAvg, histCompute, alphaMask, backgroundMask
     ) where
 
 import Prelude
@@ -21,18 +21,33 @@ import Vision.Image (
     , SeparableFilter, StorageImage (..)
     )
 import qualified Vision.Image as I
-import Vision.Primitive (Z (..), (:.) (..), ix2)
+import Vision.Primitive (Z (..), (:.) (..), DIM2, ix2)
 
 import Histogram.Color (normalize, shiftHue)
 import Histogram.Config (confHistSize, confMaxImageSize)
 import ImageIndex (IndexedHistogram)
 
+-- | Computes the average of a set of histograms. Returns a normalized histogram
+-- (sum hist == 1.0).
+histsAvg :: (Storable a, Real a, Fractional a, Eq sh)
+         => [Histogram sh a] -> Histogram sh a
+histsAvg [hist] = normalize hist
+histsAvg hists  =
+    let hists' = map normalize hists
+        n      = fromIntegral $ length hists
+    in H.map (/ n) $ foldl1 addHists hists'
+  where
+    addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2)
+        | sh1 /= sh2 = error "Histograms are not of equal size."
+        | otherwise  = let vecSum = V.zipWith (+) vec1 vec2
+                       in Histogram sh1 vecSum
+
 type Mask = Manifest Bool
 
-computeHist :: Bool -> Bool -> StorageImage -> IndexedHistogram
-computeHist !ignoreBack !ignoreSkin !io =
+histCompute :: Bool -> Bool -> StorageImage -> IndexedHistogram
+histCompute !ignoreBack !ignoreSkin !io =
     if null masks
-       then let hsv = toHSV rgb :: HSVDelayed
+       then let !hsv = toHSV rgb :: Manifest HSVPixel -- :: HSVDelayed
             in calcHist hsv
        else let !globMask = foldl1' andMasks masks
                 maskedRgb :: DelayedMask RGBPixel
@@ -49,18 +64,36 @@ computeHist !ignoreBack !ignoreSkin !io =
 
     -- Resizes the original image if larger than the maximum image size.
     !io' | h <= confMaxImageSize && w <= confMaxImageSize = io
-         | otherwise                    =
+         | otherwise                                      =
             let !ratio   = max h w % confMaxImageSize
-                !newSize = ix2 (round $ fromIntegral h * ratio)
-                               (round $ fromIntegral w * ratio)
-                resize' :: (I.Interpolable (I.ImagePixel i), I.Image i, I.FromFunction i, I.FromFunctionPixel i ~ I.ImagePixel i, Integral (I.ImageChannel i)) => i -> i
-                resize' = I.resize I.Bilinear newSize
-            in case io of GreyStorage img -> GreyStorage $! resize' img
-                          RGBAStorage img -> RGBAStorage $! resize' img
-                          RGBStorage  img -> RGBStorage  $! resize' img
+                !newSize = ix2 (round $ fromIntegral h / ratio)
+                               (round $ fromIntegral w / ratio)
+            in case io of GreyStorage img -> GreyStorage $! resize' newSize img
+                          RGBAStorage img -> RGBAStorage $! resize' newSize img
+                          RGBStorage  img -> RGBStorage  $! resize' newSize img
+
+    resize' :: (I.Interpolable (I.ImagePixel i), I.Image i, I.FromFunction i
+              , I.FromFunctionPixel i ~ I.ImagePixel i
+              , Integral (I.ImageChannel i))
+            => DIM2 -> i -> i
+    resize' size img = I.resize I.Bilinear size img
+    {-# INLINE resize' #-}
 
     rgb :: RGBImage
     !rgb = I.convert io'
+
+    isGreyscale (HSVPixel _ s v) =    v < confHistColorMinValue
+                                   || s < confHistColorMinSat
+
+    toColorPixel pix@(HSVPixel h s v)
+        | not $ isGreyscale pix = Just $! shiftHSV pix
+        | otherwise             = Nothing
+
+    toGreyscale (HSVPixel h s v)
+        | isGreyscale pix =
+            let Z :. _ :. _ :. nVals   = confHistSize
+            in Just $! toBin (ix1 nVals) (ix1 255) v
+        | otherwise       = Nothing
 
     masks = catMaybes [
           case io' of RGBAStorage rgba -> Just $! alphaMask rgba
@@ -69,14 +102,25 @@ computeHist !ignoreBack !ignoreSkin !io =
                         else Nothing
         ]
 
-    toHSV = I.map (shiftHue . I.convert)
+    toHSV = I.convert
 
-    calcHist = H.histogram (Just confHistSize)
+    calcHist img = H.histogram (Just confHistSize) img
+    {-# INLINE calcHist #-}
 
     -- Does an && between two masks boolean pixels.
     andMasks :: Mask -> Mask -> Mask
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
+
+colorToBin :: HSVPixel -> Either DIM3 DIM1
+colorToBin (HSVPixel h s v)
+    | v < confHistColorMinValue || s < confHistColorMinSat =
+        Right (toBin (ix1 nVals) (ix1 maxVals) (ix1 v))
+    | s < confHistColorMinSat   = Right
+    | otherwise                 = Left
+  where
+    Z :. _ :. _ :. nVals   = confHistSize
+    Z :. _ :. _ :. maxVals = domainSize (undefined :: HSVPixel)
 
 alphaMask :: RGBAImage -> Mask
 alphaMask = I.map (\pix -> I.rgbaAlpha pix == maxBound)
@@ -123,18 +167,3 @@ backgroundMask img =
     !blur = I.gaussianBlur blurRadius Nothing
 
     !(Z :. h :. w) = I.shape grey
-
--- | Computes the average of a set of histograms. Returns a normalized histogram
--- (sum hist == 1.0).
-histsAvg :: (Storable a, Real a, Fractional a, Eq sh)
-         => [Histogram sh a] -> Histogram sh a
-histsAvg [hist] = normalize hist
-histsAvg hists  =
-    let hists' = map normalize hists
-        n      = fromIntegral $ length hists
-    in H.map (/ n) $ foldl1 addHists hists'
-  where
-    addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2)
-        | sh1 /= sh2 = error "Histograms are not of equal size."
-        | otherwise  = let vecSum = V.zipWith (+) vec1 vec2
-                       in Histogram sh1 vecSum
