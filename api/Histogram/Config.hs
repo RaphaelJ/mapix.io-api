@@ -1,11 +1,9 @@
-module Histogram.Config (confHistSize, confMaxImageSize) where
+module Histogram.Config (
+      confHistColorMinSat, confHistColorMinValue, confHistNSat, confHistNVal
+    , confMaxImageSize
+    ) where
 
 import Prelude
-
-import Vision.Primitive (DIM3, ix3)
-
-confHistSize :: DIM3
-confHistSize = ix3 8 4 4
 
 -- | Minimum required saturation for an HSV color to be considered as having an
 -- hue (pixels with a smaller saturation value will be considered as greyscale).
@@ -16,6 +14,14 @@ confHistColorMinSat = 20
 -- (pixels with a smaller value will be considered as black).
 confHistColorMinValue :: Int
 confHistColorMinValue = 20
+
+-- | Number of saturation bins in the color histogram.
+confHistNVal :: Int
+confHistNSat = 4
+
+-- | Number of value bins in the color and grey histograms.
+confHistNVal :: Int
+confHistNVal = 4
 
 -- | Maximum size of a side of an image.
 confMaxImageSize :: Int

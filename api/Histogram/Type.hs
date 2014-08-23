@@ -1,6 +1,10 @@
 module Histogram.Type () where
 
+type ColorIX = DIM3
+
+type GreyIX = DIM1
+
 data HeterogeneousHistogram a = HeterogeneousHistogram {
-      hhColors :: Histogram DIM3 a
-    , hhGreys  :: Histogram DIM1 a
+      hhColors :: Histogram ColorIX a
+    , hhGreys  :: Histogram GreyIX  a
     }
