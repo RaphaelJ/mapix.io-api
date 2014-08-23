@@ -99,10 +99,12 @@ colorsToHist :: (Fractional a, Real a, Storable a)
 colorsToHist colors =
     let initial = V.replicate (shapeLength confHistSize) 0
         vec     = V.accum (+) initial [ (toHistLinearIndex rgb, val)
-                                      | Color rgb val <- colors ]
+                                      | Color rgb weight <- colors ]
     in normalize $ Histogram confHistSize vec
   where
     domain = H.domainSize (undefined :: RGBPixel)
+
+    hsvs = [ (convert rgb, weight) | Color rgb weight <- colors ]
 
     toHistLinearIndex =   toLinearIndex confHistSize
                         . H.toBin confHistSize domain
@@ -123,13 +125,10 @@ colorToBin !pix
 -- Assumes that the pixel has been shifted before the histogram computation
 -- (with 'shiftHSV').
 binToColor :: Either ColorIX GreyIX -> HSVPixel
-binToColor !(Left  ix) =
-    let Z :. h :. s :. v = H.toBin hsvDomain confHistSize ix
-    in HSVPixel (word8 $! binToHueMap V.! h) (word8 $! s + middleSat)
-                (word8 $! v + middleVal)
-binToColor !(Right ix) =
-    let Z :. v = H.toBin (ix1 256) (ix1 nVal) ix
-    in HSVPixel 0 0 (word8 $ v + middleVal)
+binToColor !(Left  (Z :. h :. s :. v)) =
+    HSVPixel (word8 $! binToHueMap V.! h) (word8 $! binToSatMap V.!   s)
+             (word8 $! colorBinToValMap V.! v)
+binToColor !(Right (Z :. v)) = HSVPixel 0 0 (word8 $ greyBinToValMap V.! v)
 {-# INLINE binToColor #-}
 
 -- Constants -------------------------------------------------------------------
