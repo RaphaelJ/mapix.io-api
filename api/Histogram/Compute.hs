@@ -1,6 +1,6 @@
 -- | Computes the histogram from an image. Optionally removes the 
 module Histogram.Compute (
-      histsAvg, histCompute, alphaMask, backgroundMask
+      histsAvg, histCompute, normalize, alphaMask, backgroundMask
     ) where
 
 import Prelude
@@ -112,15 +112,21 @@ histCompute !ignoreBack !ignoreSkin !io =
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
 
-colorToBin :: HSVPixel -> Either DIM3 DIM1
-colorToBin (HSVPixel h s v)
-    | v < confHistColorMinValue || s < confHistColorMinSat =
-        Right (toBin (ix1 nVals) (ix1 maxVals) (ix1 v))
-    | s < confHistColorMinSat   = Right
-    | otherwise                 = Left
+-- | Normalize the 'HeterogeneousHistogram' so the sum of its values equals 1.
+normalize :: (Storable a, Real a, Fractional a)
+          => HeterogeneousHistogram a -> HeterogeneousHistogram a
+normalize HeterogeneousHistogram {..} =
+    let !sumColors = histSum hhColors
+        !sumGreys  = histSum hhGreys
+        !total     = sumColors + sumGreys
+
+        normalize' s = H.normalize (s / total)
+    in HeterogeneousHistogram (normalize' sumColors hhColors)
+                              (normalize' sumGreys  hhGreys)
   where
-    Z :. _ :. _ :. nVals   = confHistSize
-    Z :. _ :. _ :. maxVals = domainSize (undefined :: HSVPixel)
+    histSum = V.sum . H.vector
+{-# SPECIALIZE normalize :: HeterogeneousHistogram Float
+                         -> HeterogeneousHistogram Float #-}
 
 alphaMask :: RGBAImage -> Mask
 alphaMask = I.map (\pix -> I.rgbaAlpha pix == maxBound)

@@ -1,5 +1,5 @@
 module Histogram.Config (
-      confHistColorMinSat, confHistColorMinValue, confHistNSat, confHistNVal
+      confHistColorMinSat, confHistColorMinVal, confHistNSat, confHistNVal
     , confMaxImageSize
     ) where
 
@@ -12,11 +12,11 @@ confHistColorMinSat = 20
 
 -- | Minimum required value for an HSV color to be considered as not being black
 -- (pixels with a smaller value will be considered as black).
-confHistColorMinValue :: Int
-confHistColorMinValue = 20
+confHistColorMinVal :: Int
+confHistColorMinVal = 20
 
 -- | Number of saturation bins in the color histogram.
-confHistNVal :: Int
+confHistNSat :: Int
 confHistNSat = 4
 
 -- | Number of value bins in the color and grey histograms.

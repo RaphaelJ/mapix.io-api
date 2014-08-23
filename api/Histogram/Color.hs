@@ -1,5 +1,5 @@
 module Histogram.Color (
-      Color (..), normalize, shiftHue, histColors, colorsHist, histBinColor
+      Color (..), shiftHue, histColors, colorsHist, histBinColor
     ) where
 
 import Prelude
@@ -51,22 +51,6 @@ instance ToHistogram GreyHistPixel where
 
     domainSize _ = ix1 256
 
--- | Normalize the 'HeterogeneousHistogram' so the sum of its values equals 1.
-normalize :: (Storable a, Real a, Fractional a)
-          => HeterogeneousHistogram a -> HeterogeneousHistogram a
-normalize HeterogeneousHistogram {..} =
-    let !sumColors = histSum hhColors
-        !sumGreys  = histSum hhGreys
-        !total     = sumColors + sumGreys
-
-        normalize' s = H.normalize (s / total)
-    in HeterogeneousHistogram (normalize' sumColors hhColors)
-                              (normalize' sumGreys  hhGreys)
-  where
-    histSum = V.sum . H.vector
-{-# SPECIALIZE normalize :: HeterogeneousHistogram Float
-                         -> HeterogeneousHistogram Float #-}
-
 -- | Returns 'True' if the color is to be mapped to the greyscale part of the
 -- 'HeterogeneousHistogram'.
 isGreyscale :: HSVPixel -> Bool
@@ -100,6 +84,10 @@ toGreyHistPixel pix@(HSVPixel _ _ v) | isGreyscale pix = Nothing
 histToColors :: (Ord a, Storable a) => HeterogeneousHistogram a -> a
              -> [Color a]
 histToColors !hist !minVal =
+  where
+    colors = []
+           ++ 
+
     sortBy (flip compare `on` cWeight) [ Color (convert $ histBinColor ix) v
                                        | (ix, v) <- H.assocs hist, v >= minVal ]
 {-# SPECIALIZE histToColors :: HeterogeneousHistogram Float -> Float
@@ -140,7 +128,7 @@ binToColor !(Left  ix) =
     in HSVPixel (word8 $! binToHueMap V.! h) (word8 $! s + middleSat)
                 (word8 $! v + middleVal)
 binToColor !(Right ix) =
-    let Z :. v = H.toBin (ix1 255) (ix1 nVal) ix
+    let Z :. v = H.toBin (ix1 256) (ix1 nVal) ix
     in HSVPixel 0 0 (word8 $ v + middleVal)
 {-# INLINE binToColor #-}
 
@@ -157,10 +145,12 @@ Z :. nHue :. nSat :. nVal = confHistSize
 maxHue, maxSat, maxVal :: Int
 Z :. maxHue :. maxSat :. maxVal = H.domainSize (undefined :: HSVPixel)
 
+-- Precomputed conversion vectors ----------------------------------------------
+
 colorHuesVec :: V.Vector Int
 colorHuesVec = V.fromList colorHues
 
--- | Precomputed mapping of hue values to bin indexes.
+-- | Precomputed mapping of hue values ([0;179]) to hue bin indexes.
 hueToBinMap :: V.Vector Int
 hueToBinMap =
     V.fromList $ go 0 ixs
@@ -172,7 +162,7 @@ hueToBinMap =
         let !vecIx' = end + 1
         in replicate (vecIx' - vecIx) bin ++ go vecIx' ends
 
--- | Precomputed mapping of bin indexes to hue values.
+-- | Precomputed mapping from hue bins of the color histogram to hue values.
 binToHueMap :: V.Vector Int
 binToHueMap =
     V.generate (V.length colorHuesVec) binToHue
@@ -189,14 +179,38 @@ binToHueMap =
                     | otherwise = end - start
         in (start + 1 + round (binLen % 2)) `mod` 180
 
--- Used to compute the color value of the center of a bin.
-middleHue, middleSat, middleVal :: Int
-middleHue = maxHue `quot` (nHue * 2)
-middleSat = maxSat `quot` (nSat * 2)
-middleVal = maxVal `quot` (nVal * 2)
+-- | Precomputed mapping from saturation bins indexes ([0; confHistNSat[) of the
+-- color histogram to saturation values.
+binToSatMap :: V.Vector Int
+binToSatMap = binToMap confHistNSat confHistColorMinSat 256
+
+-- | Precomputed mapping from value bins indexes ([0; confHistNVal[) of the
+-- color histogram to value values.
+colorBinToValMap :: V.Vector Int
+colorBinToValMap = binToMap confHistNVal confHistColorMinValue 256
+
+-- | Precomputed mapping from value bins ([0; confHistNVal[) indexes of the
+-- greyscale histogram to value values.
+greyBinToValMap :: V.Vector Int
+greyBinToValMap = binToMap confHistNVal 0 256
+
+-- | Creates a vector which maps bins indexes in the given range of values to
+-- their original value.
+binToMap nBins minValue maxValue =
+    V.generate nBins binToVal
+  where
+    binToVal bin = minValue + round (ratio bin * binSize + middle)
+
+    binSize = (maxValue - minValue) % nBins
+    middle  = binSize / 2
+
+-- Casting ---------------------------------------------------------------------
 
 int :: Integral a => a -> Int
 int = fromIntegral
+
+ratio :: Integral a => a -> Ratio b
+ratio = fromIntegral
 
 word8 :: Integral a => a -> Word8
 word8 = fromIntegral
