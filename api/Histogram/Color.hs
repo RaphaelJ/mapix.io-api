@@ -47,9 +47,9 @@ newtype GreyHistPixel = GreyHistPixel Word8
 instance ToHistogram GreyHistPixel where
     type PixelValueSpace GreyHistPixel = GreyIX
 
-    pixToIndex !(GreyHistPixel v) = ix1 v
+    pixToIndex !(GreyHistPixel v) = valToGreyBin v
 
-    domainSize _ = ix1 256
+    domainSize _ = ix1 confHistNVal
 
 -- | Returns 'True' if the color is to be mapped to the greyscale part of the
 -- 'HeterogeneousHistogram'.
@@ -64,11 +64,11 @@ isGreyscale (HSVPixel _ s v) =    v < confHistColorMinValue
 toColorHistPixel :: HSVPixel -> Maybe ColorHistPixel
 toColorHistPixel pix@(HSVPixel {..})
     | isGreyscale pix = Nothing
-    | otherwise       = Just $! ColorHistPixel pix {
+    | otherwise       = Just $! ColorHistPixel pix { FIX
               hsvSat   = word8 (  (int hsvSat - confHistColorMinSat)
-                                * 255 `quot` (255 - confHistColorMinSat))
+                                * 256 % (255 - confHistColorMinSat))
             , hsvValue = word8 (  (int hsvValue - confHistColorMinValue)
-                                * 255 `quot` (255 - confHistColorMinValue))
+                                * 256 `quot` (255 - confHistColorMinValue))
             }
 {-# INLINE toColorHistPixel #-}
 
@@ -113,13 +113,13 @@ colorsToHist colors =
                         . convert
 {-# SPECIALIZE colorsToHist :: [Color Float] -> HeterogeneousHistogram Float #-}
 
-colorToBin :: HSVPixel -> Either ColorIX GreyIX
-colorToBin !pix
-    | isGreyscale pix         = Right $! toBin (ix1 nVal) (ix1 255) (ix1 v)
-    | otherwise               =
-        let !shifted = shiftHSV pix
-        in Left $! toBin confHistSize hsvDomain (H.pixToIndex shifted)
-{-# INLINE colorToBin #-}
+-- colorToBin :: HSVPixel -> Either ColorIX GreyIX
+-- colorToBin !pix
+--     | isGreyscale pix         = Right $! toBin (ix1 nVal) (ix1 256) (ix1 v)
+--     | otherwise               =
+--         let !shifted = shiftHSV pix
+--         in Left $! toBin confHistSize hsvDomain (H.pixToIndex shifted)
+-- {-# INLINE colorToBin #-}
 
 -- | Returns the color corresponding to the center of the given histogram bin.
 -- Assumes that the pixel has been shifted before the histogram computation
@@ -178,30 +178,68 @@ binToHueMap =
                     | otherwise = end - start
         in (start + 1 + round (binLen % 2)) `mod` 180
 
+satToColorBinMap :: V.Vector Int
+satToColorBinMap =
+    V.generate (256 - minVal) binToVal
+  where
+    valToBin !val = -- val is in [0; 256 - minVal[.
+        let !shifted = (val * 256) % (256 - minVal)
+        in truncate $! shifted / binSize
+
+    !binSize = nVals % nBins
+
+    !middle = binSize / 2
+
+buildMap nBinsFrom nBinsTo =
+    
+
 -- | Precomputed mapping from saturation bins indexes ([0; confHistNSat[) of the
 -- color histogram to saturation values.
 binToSatMap :: V.Vector Int
-binToSatMap = binToMap confHistNSat confHistColorMinSat 256
+binToSatMap = binToValMap confHistNSat 256 confHistColorMinSat
 
 -- | Precomputed mapping from value bins indexes ([0; confHistNVal[) of the
 -- color histogram to value values.
 colorBinToValMap :: V.Vector Int
-colorBinToValMap = binToMap confHistNVal confHistColorMinValue 256
+colorBinToValMap = binToValMap confHistNVal 256 confHistColorMinValue
 
--- | Precomputed mapping from value bins ([0; confHistNVal[) indexes of the
--- greyscale histogram to value values.
-greyBinToValMap :: V.Vector Int
-greyBinToValMap = binToMap confHistNVal 0 256
+colorBinToVal :: Int -> Int
 
--- | Creates a vector which maps bins indexes in the given range of values to
--- their original value.
-binToMap nBins minValue maxValue =
+-- | Precomputed mapping from value values ([0; 256[) to bin indexes of the greyscale
+-- histogram ([0; confHistNVal[).
+valToGreyBin :: Int -> Int
+valToGreyBin = remapIxs (0, 256) (0, confHistNVal)
+
+-- | Precomputed mapping from value bin indexes of the greyscale histogram 
+-- ([0; confHistNVal[) to value values ([0; 256[).
+greyBinToVal :: Int -> Int
+greyBinToVal = remapIxs (0, confHistNVal) (0, 256)
+
+-- | Creates a function which maps indexes in the given range of values
+-- ([srcFrom; srcTo[) to a new range of indexes ([dstFrom; dstTo[) using a
+-- precomputed vector.
+remapIxs :: (Int, Int) -> (Int, Int) -> (Int -> Int)
+remapIxs (srcFrom, srcTo) (dstFrom, dstTo) =
+    \!val -> (vec V.! (val - srcFrom)) + dstFrom
+  where
+    !nSrc  = srcTo - srcFrom
+    !nDst  = dstTo - dstFrom
+    !scale = nDst % nSrc
+
+    !vec   = V.generate nSrc remap
+
+    remap ix = round $! ((ratio val + 0.5) * scale) - 0.5
+{-# INLINE remapIxs #-}
+
+-- | Creates a vector which maps bins indexes in the given range of values
+-- ([0; nBins[) to their original value ([minVal; nVals[).
+binToValMap nBins nVals minVal =
     V.generate nBins binToVal
   where
-    binToVal bin = minValue + round (ratio bin * binSize + middle)
+    binToVal !bin = minVal + round (ratio bin * binSize + middle)
 
-    binSize = (maxValue - minValue) % nBins
-    middle  = binSize / 2
+    !binSize = (nVals - minVal) % nBins
+    !middle  = binSize / 2
 
 -- Casting ---------------------------------------------------------------------
 
