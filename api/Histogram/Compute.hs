@@ -112,6 +112,33 @@ histCompute !ignoreBack !ignoreSkin !io =
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
 
+-- | Constructs an histogram from the given list of weighted colors.
+colorsToHist :: (Fractional a, Real a, Storable a)
+           => [Color a] -> HeterogeneousHistogram a
+colorsToHist colors =
+    let hsvs = [ (convert rgb, weight) | Color rgb weight <- colors ]
+
+        (greys, colors) = first  toGreyHistPixel   $
+                          second toColorsHistPixel $ partition isGreyscale hsvs
+
+    in normalize (toHist colorsHistSize colors) (toHist initialGreys greys)
+  where
+    toHist histSize pixs =
+        let initial = V.replicate (shapeLength histSize) 0
+            vec     = V.accum (+) initial [ (toHistLinearIndex pix, val)
+                                          | (pix, weight) <- pixs ]
+
+            pixel :: [p] -> p
+            pixel _ = undefined
+            domain  = domainSize (pixel pixs)
+
+            -- Remark: toBin should be useless as histSize == domain.
+            toHistLinearIndex =   toLinearIndex histSize
+                                . H.toBin histSize domain
+                                . H.pixToIndex
+        in Histogram histSize vec
+{-# SPECIALIZE colorsToHist :: [Color Float] -> HeterogeneousHistogram Float #-}
+
 -- | Normalize the 'HeterogeneousHistogram' so the sum of its values equals 1.
 normalize :: (Storable a, Real a, Fractional a)
           => HeterogeneousHistogram a -> HeterogeneousHistogram a

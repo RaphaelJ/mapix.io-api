@@ -1,5 +1,10 @@
 module Histogram.Color (
-      Color (..), shiftHue, histColors, colorsHist, histBinColor
+      Color (..), ColorHistPixel (..), GreyHistPixel (..)
+          
+    , isGreyscale, toColorHistPixel toGreyHistPixel
+    , histToColors, binToColor
+      
+      shiftHue, histColors, colorsHist, histBinColor, remapIxs
     ) where
 
 import Prelude
@@ -24,6 +29,8 @@ data Color w = Color {
     , cWeight :: !w
     } deriving Show
 
+-- Color and greyscale pixels --------------------------------------------------
+
 newtype ColorHistPixel = ColorHistPixel HSVPixel
     deriving (Storable, Pixel)
 
@@ -37,9 +44,9 @@ instance ToHistogram ColorHistPixel where
     type PixelValueSpace ColorHistPixel = ColorIX
 
     pixToIndex !(ColorHistPixel (HSVPixel h s v)) =
-        ix3 (hueToBinMap V.! h) s v
+        ix3 (hueToBin h) (satToColorBin s) (valToColorBin v)
 
-    domainSize _ = ix3 (V.length colorHuesVec) 256 256
+    domainSize _ = colorsHistSize
 
 newtype GreyHistPixel = GreyHistPixel Word8
     deriving (Storable, Pixel)
@@ -49,7 +56,7 @@ instance ToHistogram GreyHistPixel where
 
     pixToIndex !(GreyHistPixel v) = valToGreyBin v
 
-    domainSize _ = ix1 confHistNVal
+    domainSize _ = greysHistSize
 
 -- | Returns 'True' if the color is to be mapped to the greyscale part of the
 -- 'HeterogeneousHistogram'.
@@ -64,12 +71,7 @@ isGreyscale (HSVPixel _ s v) =    v < confHistColorMinValue
 toColorHistPixel :: HSVPixel -> Maybe ColorHistPixel
 toColorHistPixel pix@(HSVPixel {..})
     | isGreyscale pix = Nothing
-    | otherwise       = Just $! ColorHistPixel pix { FIX
-              hsvSat   = word8 (  (int hsvSat - confHistColorMinSat)
-                                * 256 % (255 - confHistColorMinSat))
-            , hsvValue = word8 (  (int hsvValue - confHistColorMinValue)
-                                * 256 `quot` (255 - confHistColorMinValue))
-            }
+    | otherwise       = Just $! ColorHistPixel pix
 {-# INLINE toColorHistPixel #-}
 
 -- | Returns a 'GreyHistPixel' if the given 'HSVPixel' is mapped to the grey
@@ -79,81 +81,61 @@ toGreyHistPixel pix@(HSVPixel _ _ v) | isGreyscale pix = Nothing
                                      | otherwise       = Just $ GreyHistPixel v
 {-# INLINE toGreyHistPixel #-}
 
+-- -----------------------------------------------------------------------------
+
 -- | Returns the primary RGB colors of the histogram, sorted by their decreasing
 -- weight. Ignores colors which weight less than the given value.
 histToColors :: (Ord a, Storable a) => HeterogeneousHistogram a -> a
              -> [Color a]
-histToColors !hist !minVal =
+histToColors HeterogeneousHistogram {..} !minVal =
+    sortBy (flip compare `on` cWeight) colors
   where
-    colors = []
-           ++ 
+    ixs =    [ (Left  ix, v) | (ix, v) <- H.assocs hhGreys,  v >= minVal ]
+          ++ [ (Right ix, v) | (ix, v) <- H.assocs hhColors, v >= minVal ]
 
-    sortBy (flip compare `on` cWeight) [ Color (convert $ histBinColor ix) v
-                                       | (ix, v) <- H.assocs hist, v >= minVal ]
+    colors = [ Color (convert $ binToColor ix) v | (ix, v) <- ixs ]
 {-# SPECIALIZE histToColors :: HeterogeneousHistogram Float -> Float
                             -> [Color Float] #-}
 
--- | Constructs an histogram from the given list of weighted colors.
-colorsToHist :: (Fractional a, Real a, Storable a)
-           => [Color a] -> Histogram DIM3 a
-colorsToHist colors =
-    let initial = V.replicate (shapeLength confHistSize) 0
-        vec     = V.accum (+) initial [ (toHistLinearIndex rgb, val)
-                                      | Color rgb weight <- colors ]
-    in normalize $ Histogram confHistSize vec
-  where
-    domain = H.domainSize (undefined :: RGBPixel)
-
-    hsvs = [ (convert rgb, weight) | Color rgb weight <- colors ]
-
-    toHistLinearIndex =   toLinearIndex confHistSize
-                        . H.toBin confHistSize domain
-                        . H.pixToIndex
-                        . shiftHue
-                        . convert
-{-# SPECIALIZE colorsToHist :: [Color Float] -> HeterogeneousHistogram Float #-}
-
+-- -- | Returns the histogram bin corresponding to the given color.
 -- colorToBin :: HSVPixel -> Either ColorIX GreyIX
 -- colorToBin !pix
 --     | isGreyscale pix         = Right $! toBin (ix1 nVal) (ix1 256) (ix1 v)
 --     | otherwise               =
 --         let !shifted = shiftHSV pix
 --         in Left $! toBin confHistSize hsvDomain (H.pixToIndex shifted)
--- {-# INLINE colorToBin #-}
 
 -- | Returns the color corresponding to the center of the given histogram bin.
--- Assumes that the pixel has been shifted before the histogram computation
--- (with 'shiftHSV').
 binToColor :: Either ColorIX GreyIX -> HSVPixel
-binToColor !(Left  (Z :. h :. s :. v)) =
-    HSVPixel (word8 $! binToHueMap V.! h) (word8 $! binToSatMap V.!   s)
-             (word8 $! colorBinToValMap V.! v)
-binToColor !(Right (Z :. v)) = HSVPixel 0 0 (word8 $ greyBinToValMap V.! v)
-{-# INLINE binToColor #-}
+binToColor !(Left  (Z :. h :. s :. v)) = HSVPixel (binToHue h) (colorBinToSat s)
+                                                  (colorBinToVal v)
+binToColor !(Right (Z :. v))           = HSVPixel 0 0 (greyBinToVal v)
 
 -- Constants -------------------------------------------------------------------
 
-hsvDomain :: DIM3
-hsvDomain = H.domainSize (undefined :: HSVPixel)
+colorsHistSize :: ColorIX
+colorsHistSize = ix3 (V.length colorHuesVec) confHistNSat confHistNVal
 
--- Number of each bins for each channel in the histogram.
-nHue, nSat, nVal :: Int
-Z :. nHue :. nSat :. nVal = confHistSize
+greysHistSize :: GreyIX
+greysHistSize = ix1 confHistNVal
 
--- Number of different values for each channel.
-maxHue, maxSat, maxVal :: Int
-Z :. maxHue :. maxSat :. maxVal = H.domainSize (undefined :: HSVPixel)
+-- hsvDomain :: DIM3
+-- hsvDomain = H.domainSize (undefined :: HSVPixel)
+-- 
+-- -- Number of different values for each channel.
+-- maxHue, maxSat, maxVal :: Int
+-- Z :. maxHue :. maxSat :. maxVal = H.domainSize (undefined :: HSVPixel)
 
--- Precomputed conversion vectors ----------------------------------------------
+-- Colors to indexes precomputed mappings --------------------------------------
 
-colorHuesVec :: V.Vector Int
-colorHuesVec = V.fromList colorHues
-
--- | Precomputed mapping of hue values ([0;179]) to hue bin indexes.
-hueToBinMap :: V.Vector Int
-hueToBinMap =
-    V.fromList $ go 0 ixs
+-- | Precomputed mapping from hue values ([0; 180[) to hue bin indexes of the
+-- color histogram ([0; length colorHues[).
+hueToBin :: Word8 -> Int
+hueToBin =
+    (vec V.!) . int
   where
+    !vec = V.fromList $ go 0 ixs
+
     ixs = zip (sort colorHues) [0..] ++ [(179, 0)]
 
     go vecIx _ | vecIx >= 180  = []
@@ -161,59 +143,59 @@ hueToBinMap =
         let !vecIx' = end + 1
         in replicate (vecIx' - vecIx) bin ++ go vecIx' ends
 
--- | Precomputed mapping from hue bins of the color histogram to hue values.
-binToHueMap :: V.Vector Int
-binToHueMap =
-    V.generate (V.length colorHuesVec) binToHue
-  where
-    binToHue bin =
-        let -- start is the index of the last cell of the preceding bin.
-            !start | bin == 0  = V.last colorHuesVec
-                   | otherwise = colorHuesVec V.! (bin - 1)
+-- | Precomputed mapping saturation values ([confHistColorMinSat; 256[) to
+-- saturation bin indexes of the color histogram ([0; confHistNSat[).
+satToColorBin :: Word8 -> Int
+satToColorBin = remapIxs (confHistColorMinSat, 256) (0, confHistNSat) . int
 
-            -- end is the index of the last cell of the current bin.
-            !end    = colorHuesVec V.! bin
+-- | Precomputed mapping from value values ([confHistColorMinVal; 256[) to bin
+-- indexes of the color histogram ([0; confHistNVal[).
+valToColorBin :: Word8 -> Int
+valToColorBin = remapIxs (confHistColorMinVal, 256) (0, confHistNVal) . int
+
+-- | Precomputed mapping from value values ([0; 256[) to bin indexes of the
+-- greyscale histogram ([0; confHistNVal[).
+valToGreyBin :: Word8 -> Int
+valToGreyBin = remapIxs (0, 256) (0, confHistNVal) . int
+
+-- Indexes to colors precomputed mappings --------------------------------------
+
+-- | Precomputed mapping from hue bin indexes of the color histogram
+-- ([0; length colorHues[) to hue values ([0; 180[).
+binToHue :: Int -> Word8
+binToHue =
+    word8 . (vec V.!)
+  where
+    !vec = V.generate (V.length colorHuesVec) binToHue
+
+    binToHue bin =
+        let -- start is the index of the first cell of the bin.
+            !start | bin == 0  = V.last colorHuesVec        + 1
+                   | otherwise = colorHuesVec V.! (bin - 1) + 1
+
+            -- end is the index of the first cell of the next bin.
+            !end    = colorHuesVec V.! bin + 1
 
             !binLen | bin == 0  = (end + 180) - start
                     | otherwise = end - start
-        in (start + 1 + round (binLen % 2)) `mod` 180
+        in (start + round (binLen % 2)) `mod` 180
 
-satToColorBinMap :: V.Vector Int
-satToColorBinMap =
-    V.generate (256 - minVal) binToVal
-  where
-    valToBin !val = -- val is in [0; 256 - minVal[.
-        let !shifted = (val * 256) % (256 - minVal)
-        in truncate $! shifted / binSize
+-- | Precomputed mapping from saturation bin indexes of the color histogram
+-- ([0; confHistNSat[) to saturation values ([confHistColorMinSat; 256[).
+colorBinToSat :: Int -> Word8
+colorBinToSat = word8 . remapIxs (0, confHistNSat) (confHistColorMinSat, 256)
 
-    !binSize = nVals % nBins
+-- | Precomputed mapping from value bin indexes of the color histogram
+-- ([0; confHistNVal[) to value values ([confHistColorMinVal; 256[).
+colorBinToVal :: Int -> Word8
+colorBinToVal = word8 . remapIxs (0, confHistNVal) (confHistColorMinVal, 256)
 
-    !middle = binSize / 2
-
-buildMap nBinsFrom nBinsTo =
-    
-
--- | Precomputed mapping from saturation bins indexes ([0; confHistNSat[) of the
--- color histogram to saturation values.
-binToSatMap :: V.Vector Int
-binToSatMap = binToValMap confHistNSat 256 confHistColorMinSat
-
--- | Precomputed mapping from value bins indexes ([0; confHistNVal[) of the
--- color histogram to value values.
-colorBinToValMap :: V.Vector Int
-colorBinToValMap = binToValMap confHistNVal 256 confHistColorMinValue
-
-colorBinToVal :: Int -> Int
-
--- | Precomputed mapping from value values ([0; 256[) to bin indexes of the greyscale
--- histogram ([0; confHistNVal[).
-valToGreyBin :: Int -> Int
-valToGreyBin = remapIxs (0, 256) (0, confHistNVal)
-
--- | Precomputed mapping from value bin indexes of the greyscale histogram 
+-- | Precomputed mapping from value bin indexes of the greyscale histogram
 -- ([0; confHistNVal[) to value values ([0; 256[).
-greyBinToVal :: Int -> Int
-greyBinToVal = remapIxs (0, confHistNVal) (0, 256)
+greyBinToVal :: Int -> Word8
+greyBinToVal = word8 . remapIxs (0, confHistNVal) (0, 256)
+
+-- -----------------------------------------------------------------------------
 
 -- | Creates a function which maps indexes in the given range of values
 -- ([srcFrom; srcTo[) to a new range of indexes ([dstFrom; dstTo[) using a
@@ -230,16 +212,6 @@ remapIxs (srcFrom, srcTo) (dstFrom, dstTo) =
 
     remap ix = round $! ((ratio val + 0.5) * scale) - 0.5
 {-# INLINE remapIxs #-}
-
--- | Creates a vector which maps bins indexes in the given range of values
--- ([0; nBins[) to their original value ([minVal; nVals[).
-binToValMap nBins nVals minVal =
-    V.generate nBins binToVal
-  where
-    binToVal !bin = minVal + round (ratio bin * binSize + middle)
-
-    !binSize = (nVals - minVal) % nBins
-    !middle  = binSize / 2
 
 -- Casting ---------------------------------------------------------------------
 
