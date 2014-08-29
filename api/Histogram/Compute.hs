@@ -116,26 +116,22 @@ histCompute !ignoreBack !ignoreSkin !io =
 colorsToHist :: (Fractional a, Real a, Storable a)
            => [Color a] -> HeterogeneousHistogram a
 colorsToHist colors =
-    let hsvs = [ (convert rgb, weight) | Color rgb weight <- colors ]
-
-        (greys, colors) = first  toGreyHistPixel   $
-                          second toColorsHistPixel $ partition isGreyscale hsvs
+    let (greys, colors) = partitionEithers $ map colorToBin colors
 
     in normalize (toHist colorsHistSize colors) (toHist initialGreys greys)
   where
-    toHist histSize pixs =
+    colorToBin Color {..} =
+        let !hsv = convert cColor
+        in case pixToBin hsv of
+                Left ix  -> Left  (ix, cWeight)
+                Right ix -> Right (ix, cWeight)
+
+    toHist histSize ixs =
         let initial = V.replicate (shapeLength histSize) 0
-            vec     = V.accum (+) initial [ (toHistLinearIndex pix, val)
-                                          | (pix, weight) <- pixs ]
+            vec     = V.accum (+) initial [ (toHistLinearIndex ix, weight)
+                                          | (ix, weight) <- ixs ]
 
-            pixel :: [p] -> p
-            pixel _ = undefined
-            domain  = domainSize (pixel pixs)
-
-            -- Remark: toBin should be useless as histSize == domain.
-            toHistLinearIndex =   toLinearIndex histSize
-                                . H.toBin histSize domain
-                                . H.pixToIndex
+            toHistLinearIndex = toLinearIndex histSize
         in Histogram histSize vec
 {-# SPECIALIZE colorsToHist :: [Color Float] -> HeterogeneousHistogram Float #-}
 
