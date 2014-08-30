@@ -1,6 +1,7 @@
--- | Computes the histogram from an image. Optionally removes the 
+-- | Functions to create an histogram from an image or a list of colors.
 module Histogram.Compute (
-      histsAvg, histCompute, normalize, alphaMask, backgroundMask
+      fromImage, fromColors
+    , average, normalize, alphaMask, backgroundMask
     ) where
 
 import Prelude
@@ -16,46 +17,38 @@ import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
 import qualified Vision.Histogram as H
 import Vision.Image (
-      GreyImage, GreyPixel, DelayedMask, Manifest, MutableManifest
-    , HSVDelayed, HSVPixel, RGBAImage, RGBImage, RGBPixel
-    , SeparableFilter, StorageImage (..)
+      Grey, GreyPixel, HSV, HSVPixel, RGBA, RGB, RGBPixel
+    , DelayedMask, Manifest, MutableManifest, SeparableFilter, StorageImage (..)
     )
 import qualified Vision.Image as I
 import Vision.Primitive (Z (..), (:.) (..), DIM2, ix2)
 
-import Histogram.Color (normalize, shiftHue)
 import Histogram.Config (confHistSize, confMaxImageSize)
-import ImageIndex (IndexedHistogram)
-
--- | Computes the average of a set of histograms. Returns a normalized histogram
--- (sum hist == 1.0).
-histsAvg :: (Storable a, Real a, Fractional a, Eq sh)
-         => [Histogram sh a] -> Histogram sh a
-histsAvg [hist] = normalize hist
-histsAvg hists  =
-    let hists' = map normalize hists
-        n      = fromIntegral $ length hists
-    in H.map (/ n) $ foldl1 addHists hists'
-  where
-    addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2)
-        | sh1 /= sh2 = error "Histograms are not of equal size."
-        | otherwise  = let vecSum = V.zipWith (+) vec1 vec2
-                       in Histogram sh1 vecSum
+import Histogram.Type (HeterogeneousHistogram (..))
 
 type Mask = Manifest Bool
 
-histCompute :: Bool -> Bool -> StorageImage -> IndexedHistogram
-histCompute !ignoreBack !ignoreSkin !io =
+-- fromImage :: Bool -> Bool -> StorageImage -> HeterogeneousHistogram a
+fromImage !ignoreBack !ignoreSkin !io =
     if null masks
-       then let !hsv = toHSV rgb :: Manifest HSVPixel -- :: HSVDelayed
+       then let !hsv = toHSV rgb :: HSV -- :: HSVDelayed
             in calcHist hsv
-       else let !globMask = foldl1' andMasks masks
+       else let globMask :: Mask
+                !globMask = foldl1' andMasks masks :: Mask
+
                 maskedRgb :: DelayedMask RGBPixel
                 maskedRgb =
                     I.fromFunction (I.shape rgb) $ \pt ->
                         if globMask `I.index` pt then Just $! rgb `I.index` pt
                                                  else Nothing
-                maskedHSV = toHSV maskedRgb :: DelayedMask HSVPixel
+
+                maskedHSV :: DelayedMask HSVPixel
+                maskedHSV = toHSV maskedRgb
+
+                colors = I.fromFunction (I.shape rgb) $ \pt ->
+                        
+                ap (toColorHistPixel
+
             in calcHist maskedHSV
   where
     !(Z :. h :. w) = case io of GreyStorage img -> I.shape img
@@ -79,21 +72,8 @@ histCompute !ignoreBack !ignoreSkin !io =
     resize' size img = I.resize I.Bilinear size img
     {-# INLINE resize' #-}
 
-    rgb :: RGBImage
+    rgb :: RGB
     !rgb = I.convert io'
-
-    isGreyscale (HSVPixel _ s v) =    v < confHistColorMinValue
-                                   || s < confHistColorMinSat
-
-    toColorPixel pix@(HSVPixel h s v)
-        | not $ isGreyscale pix = Just $! shiftHSV pix
-        | otherwise             = Nothing
-
-    toGreyscale (HSVPixel h s v)
-        | isGreyscale pix =
-            let Z :. _ :. _ :. nVals   = confHistSize
-            in Just $! toBin (ix1 nVals) (ix1 255) v
-        | otherwise       = Nothing
 
     masks = catMaybes [
           case io' of RGBAStorage rgba -> Just $! alphaMask rgba
@@ -104,18 +84,17 @@ histCompute !ignoreBack !ignoreSkin !io =
 
     toHSV = I.convert
 
-    calcHist img = H.histogram (Just confHistSize) img
-    {-# INLINE calcHist #-}
+    calcHist = H.histogram Nothing
 
     -- Does an && between two masks boolean pixels.
-    andMasks :: Mask -> Mask -> Mask
+--     andMasks :: Mask -> Mask -> Mask
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
 
 -- | Constructs an histogram from the given list of weighted colors.
-colorsToHist :: (Fractional a, Real a, Storable a)
+fromColors :: (Fractional a, Real a, Storable a)
            => [Color a] -> HeterogeneousHistogram a
-colorsToHist colors =
+fromColors colors =
     let (greys, colors) = partitionEithers $ map colorToBin colors
 
     in normalize (toHist colorsHistSize colors) (toHist initialGreys greys)
@@ -133,7 +112,26 @@ colorsToHist colors =
 
             toHistLinearIndex = toLinearIndex histSize
         in Histogram histSize vec
-{-# SPECIALIZE colorsToHist :: [Color Float] -> HeterogeneousHistogram Float #-}
+{-# SPECIALIZE fromColors :: [Color Float] -> HeterogeneousHistogram Float #-}
+
+-- -----------------------------------------------------------------------------
+
+-- | Computes the average of a set of histograms. Returns a normalized histogram
+-- (sum hist == 1.0).
+average :: (Storable a, Real a, Fractional a, Eq sh)
+         => HeterogeneousHistogram a -> HeterogeneousHistogram a
+average [hist] = normalize hist
+average hists  =
+    let hists' = map normalize hists
+        n      = fromIntegral $ length hists
+    in H.map (/ n) $ foldl1 addHists hists'
+  where
+    addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2)
+        | sh1 /= sh2 = error "Histograms are not of equal size."
+        | otherwise  = let vecSum = V.zipWith (+) vec1 vec2
+                       in Histogram sh1 vecSum
+{-# SPECIALIZE average :: HeterogeneousHistogram Float
+                       -> HeterogeneousHistogram Float #-}
 
 -- | Normalize the 'HeterogeneousHistogram' so the sum of its values equals 1.
 normalize :: (Storable a, Real a, Fractional a)
@@ -151,6 +149,8 @@ normalize HeterogeneousHistogram {..} =
 {-# SPECIALIZE normalize :: HeterogeneousHistogram Float
                          -> HeterogeneousHistogram Float #-}
 
+-- -----------------------------------------------------------------------------
+
 alphaMask :: RGBAImage -> Mask
 alphaMask = I.map (\pix -> I.rgbaAlpha pix == maxBound)
 
@@ -166,15 +166,15 @@ backgroundMask img =
     backgroundVal = 127
     edgeVal       = maxBound
 
-    grey, blurred, edges, closed :: GreyImage
-    !grey    = I.convert img :: GreyImage
+    grey, blurred, edges, closed :: Grey
+    !grey    = I.convert img
     !blurred = I.apply grey blur
     !edges   = canny sobelRadius cannyLow cannyHigh blurred
     !closed  = closing 2 edges
 
     -- Applies a morphological closing of the given radius.
     closing rad img' =
-        let img'' :: I.GreyImage
+        let img'' :: Grey
             img'' = img' `I.apply` I.dilate rad
         in img'' `I.apply` I.erode rad
 

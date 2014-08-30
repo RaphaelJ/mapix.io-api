@@ -4,13 +4,16 @@ module Histogram.Compare (
 
 import Prelude
 
+import Data.Function
 import Foreign.Storable (Storable)
-import Vision.Histogram (Histogram, compareIntersect)
-import Vision.Primitive (DIM3)
+import Vision.Histogram (compareIntersect)
 
-import ImageIndex (IndexedHistogram)
+import Histogram.Type (HeterogeneousHistogram (..))
 
 compareHist :: (Ord a, Num a, Storable a)
-            => Histogram DIM3 a -> Histogram DIM3 a -> a
-compareHist hist1 hist2 = compareIntersect hist1 hist2
-{-# SPECIALIZE compareHist :: IndexedHistogram -> IndexedHistogram -> Float #-}
+            => HeterogeneousHistogram a -> HeterogeneousHistogram a -> a
+compareHist hist hist' =
+      (compareIntersect `on` hhColors) hist hist'
+    + (compareIntersect `on` hhGreys)  hist hist'
+{-# SPECIALIZE compareHist :: HeterogeneousHistogram Float
+                           -> HeterogeneousHistogram Float -> Float #-}

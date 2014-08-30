@@ -1,4 +1,7 @@
-module Histogram.Type () where
+module Histogram.Type where
+
+import Vision.Histogram (Histogram (..))
+import Vision.Primitive (DIM1, DIM3)
 
 type ColorIX = DIM3
 
