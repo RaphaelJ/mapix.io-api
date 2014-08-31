@@ -29,7 +29,7 @@ import ImageIndex (
     , addImage, getMatchingImages, getTag, getUserIndex, lookupImage
     , removeImage, touchUserIndex, userIndexSize
     )
-import Histogram (histsAvg, histCompute)
+import Histogram (fromImages)
 
 -- | Lists every image of the user.
 getImagesR :: Handler Value
@@ -62,7 +62,7 @@ postImagesR :: Handler Value
 postImagesR = do
     NewImage {..} <- runInputPost newImageForm
 
-    let !hist = histsAvg $ map (histCompute niIgnoreBack niIgnoreSkin) niImages
+    let !hist = fromImages niIgnoreBack niIgnoreSkin niImages
     liftIO $ print hist
 
     headers     <- getMashapeHeaders

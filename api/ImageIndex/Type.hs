@@ -9,8 +9,6 @@ import Data.Set (Set)
 import Data.String
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
-import Vision.Histogram (Histogram)
-import Vision.Primitive (DIM3)
 import Yesod
 
 import Histogram (HeterogeneousHistogram)
@@ -79,5 +77,7 @@ data IndexedImage = IndexedImage {
       iiCode :: !ImageCode
     , iiName :: !(Maybe Text)
     , iiTags :: !(Set Tag)
-    , iiHist :: !(HeterogeneousHistogram Float)
+    , iiHist :: !IndexedHistogram
     } deriving (Eq, Ord)
+
+type IndexedHistogram = HeterogeneousHistogram Float

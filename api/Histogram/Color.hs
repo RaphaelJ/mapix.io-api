@@ -2,9 +2,10 @@
 module Histogram.Color (
       Color (..), ColorHistPixel (..), GreyHistPixel (..)
     , isGreyscale, toColorHistPixel, toGreyHistPixel
-    , histToColors, hsvToBin, binToHsv
+    , toColors, hsvToBin, binToHsv
     , hueToBin, satToColorBin, valToColorBin, valToGreyBin
     , binToHue, colorBinToSat, colorBinToVal, greyBinToVal
+    , colorsHistSize, greysHistSize
     ) where
 
 import Prelude
@@ -109,17 +110,17 @@ toGreyHistPixel !pix@(HSVPixel {..})
 
 -- | Returns the primary RGB colors of the histogram, sorted by their decreasing
 -- weight. Ignores colors which weight less than the given value.
-histToColors :: (Ord a, Storable a) => HeterogeneousHistogram a -> a
+toColors :: (Ord a, Storable a) => HeterogeneousHistogram a -> a
              -> [Color a]
-histToColors HeterogeneousHistogram {..} !minVal =
+toColors HeterogeneousHistogram {..} !minVal =
     sortBy (flip compare `on` cWeight) colors
   where
     ixs =    [ (Left  ix, v) | (ix, v) <- H.assocs hhColors, v >= minVal ]
           ++ [ (Right ix, v) | (ix, v) <- H.assocs hhGreys,  v >= minVal ]
 
     colors = [ Color (convert $ binToHsv ix) v | (ix, v) <- ixs ]
-{-# SPECIALIZE histToColors :: HeterogeneousHistogram Float -> Float
-                            -> [Color Float] #-}
+{-# SPECIALIZE toColors :: HeterogeneousHistogram Float -> Float
+                        -> [Color Float] #-}
 
 -- | Returns the histogram bin corresponding to the given pixel.
 hsvToBin :: HSVPixel -> Either ColorIX GreyIX

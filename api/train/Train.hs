@@ -18,7 +18,7 @@ import System.FilePath ((</>), takeFileName)
 import Text.Printf
 import Vision.Histogram (Histogram, ToHistogram (..))
 import qualified Vision.Histogram as H
-import Vision.Image (Image (..), ImagePixel, HSVImage, HSVPixel (..), RGBImage)
+import Vision.Image (Image (..), ImagePixel, HSV, HSVPixel (..), RGB)
 import qualified Vision.Image as I
 import Vision.Primitive
 
@@ -152,14 +152,14 @@ main = do
     listDirs  dir = listContent dir >>= filterM doesDirectoryExist
     listFiles dir = listContent dir >>= filterM doesFileExist
 
-    loadSet :: FilePath -> IO [(Tag, RGBImage)]
+    loadSet :: FilePath -> IO [(Tag, RGB)]
     loadSet dir = do
         let catName = takeFileName dir
 
         files <- listFiles dir
         forM files $ \filename -> do
             Right img <- I.load Nothing filename
-            let rgb = I.convert img :: RGBImage
+            let rgb = I.convert img :: RGB
             return (Tag filename catName, rgb)
 
     resize maxImageSize img
@@ -174,9 +174,9 @@ main = do
         Z :. h :. w = I.shape img
         maxSide = max w h
 
-    toHSV img = I.convert img :: HSVImage
+    toHSV img = I.convert img :: HSV
 
-    shiftHue :: Int -> HSVImage -> HSVImage
+    shiftHue :: Int -> HSV -> HSV
     shiftHue nColors =
         let !padd = 180 `quot` (nColors * 2)
         in I.map (\pix@(HSVPixel {..}) ->

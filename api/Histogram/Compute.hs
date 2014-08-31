@@ -1,6 +1,7 @@
 -- | Functions to create an histogram from an image or a list of colors.
 module Histogram.Compute (
-      fromImage, fromColors
+      Mask
+    , fromImages, fromColors
     , average, normalize, alphaMask, backgroundMask
     ) where
 
@@ -8,6 +9,8 @@ import Prelude
 
 import Control.Monad
 import Control.Monad.ST
+import Data.Either
+import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Ratio
@@ -17,93 +20,115 @@ import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
 import qualified Vision.Histogram as H
 import Vision.Image (
-      Grey, GreyPixel, HSV, HSVPixel, RGBA, RGB, RGBPixel
-    , DelayedMask, Manifest, MutableManifest, SeparableFilter, StorageImage (..)
+      Image, ImagePixel, ImageChannel, FromFunction, FromFunctionPixel
+    , Interpolable
+    , DelayedMask, Manifest, MutableManifest
+    , Grey, GreyPixel, HSV, HSVPixel, RGBA, RGB, StorageImage (..)
+    , SeparableFilter
     )
 import qualified Vision.Image as I
-import Vision.Primitive (Z (..), (:.) (..), DIM2, ix2)
+import Vision.Primitive (
+      Z (..), (:.) (..), Point, Size, ix2, shapeLength, toLinearIndex
+    )
 
-import Histogram.Config (confHistSize, confMaxImageSize)
+import Histogram.Color (
+      Color (..), ColorHistPixel, GreyHistPixel
+    , toColorHistPixel, toGreyHistPixel, hsvToBin, colorsHistSize, greysHistSize
+    )
+import Histogram.Config (confMaxImageSize)
 import Histogram.Type (HeterogeneousHistogram (..))
 
 type Mask = Manifest Bool
 
--- fromImage :: Bool -> Bool -> StorageImage -> HeterogeneousHistogram a
+-- | Builds an histogram from a list of images.
+-- Returns a normalized histogram.
+fromImages :: (Storable a, Real a, Fractional a)
+           => Bool -> Bool -> [StorageImage] -> HeterogeneousHistogram a
+fromImages !ignoreBack !ignoreSkin =   average
+                                     . map (fromImage ignoreBack ignoreSkin)
+{-# SPECIALIZE fromImages :: Bool -> Bool -> [StorageImage]
+                          -> HeterogeneousHistogram Float #-}
+
+-- | Builds an histogram from an image. 
+fromImage :: (Storable a, Real a, Fractional a)
+          => Bool -> Bool -> StorageImage -> HeterogeneousHistogram a
 fromImage !ignoreBack !ignoreSkin !io =
-    if null masks
-       then let !hsv = toHSV rgb :: HSV -- :: HSVDelayed
-            in calcHist hsv
+    let -- Resizes the original image if larger than the maximum image size.
+        !io' | h <= confMaxImageSize && w <= confMaxImageSize = io
+             | otherwise                                      =
+                let !ratio   = max h w % confMaxImageSize
+                    !newSize = ix2 (round $ fromIntegral h / ratio)
+                                   (round $ fromIntegral w / ratio)
+                in case io of
+                        GreyStorage img -> GreyStorage $! resize' newSize img
+                        RGBAStorage img -> RGBAStorage $! resize' newSize img
+                        RGBStorage  img -> RGBStorage  $! resize' newSize img
+
+        hsv :: HSV
+        !hsv = I.convert (I.convert io' :: RGB)
+
+        masks = catMaybes [
+              case io' of RGBAStorage rgba -> Just $! alphaMask rgba
+                          _                -> Nothing
+            , if ignoreBack then Just $! backgroundMask io'
+                            else Nothing
+            ]
+    in if null masks
+       then toHist hsv
        else let globMask :: Mask
-                !globMask = foldl1' andMasks masks :: Mask
+                !globMask = foldl1' andMasks masks
 
-                maskedRgb :: DelayedMask RGBPixel
-                maskedRgb =
-                    I.fromFunction (I.shape rgb) $ \pt ->
-                        if globMask `I.index` pt then Just $! rgb `I.index` pt
+                maskedHsv :: DelayedMask HSVPixel
+                maskedHsv =
+                    I.fromFunction (I.shape hsv) $ \pt ->
+                        if globMask `I.index` pt then Just $! hsv `I.index` pt
                                                  else Nothing
-
-                maskedHSV :: DelayedMask HSVPixel
-                maskedHSV = toHSV maskedRgb
-
-                colors = I.fromFunction (I.shape rgb) $ \pt ->
-                        
-                ap (toColorHistPixel
-
-            in calcHist maskedHSV
+            in toHist maskedHsv
   where
     !(Z :. h :. w) = case io of GreyStorage img -> I.shape img
                                 RGBAStorage img -> I.shape img
                                 RGBStorage  img -> I.shape img
 
-    -- Resizes the original image if larger than the maximum image size.
-    !io' | h <= confMaxImageSize && w <= confMaxImageSize = io
-         | otherwise                                      =
-            let !ratio   = max h w % confMaxImageSize
-                !newSize = ix2 (round $ fromIntegral h / ratio)
-                               (round $ fromIntegral w / ratio)
-            in case io of GreyStorage img -> GreyStorage $! resize' newSize img
-                          RGBAStorage img -> RGBAStorage $! resize' newSize img
-                          RGBStorage  img -> RGBStorage  $! resize' newSize img
-
-    resize' :: (I.Interpolable (I.ImagePixel i), I.Image i, I.FromFunction i
-              , I.FromFunctionPixel i ~ I.ImagePixel i
-              , Integral (I.ImageChannel i))
-            => DIM2 -> i -> i
+    resize' :: (Interpolable (ImagePixel i), Image i, FromFunction i
+              , FromFunctionPixel i ~ ImagePixel i
+              , Integral (ImageChannel i))
+            => Size -> i -> i
     resize' size img = I.resize I.Bilinear size img
     {-# INLINE resize' #-}
 
-    rgb :: RGB
-    !rgb = I.convert io'
+    toHist img =
+        let colors :: DelayedMask ColorHistPixel
+            colors = I.fromFunction (I.shape img) $   (>>= toColorHistPixel)
+                                                    . (img `I.maskedIndex`)
 
-    masks = catMaybes [
-          case io' of RGBAStorage rgba -> Just $! alphaMask rgba
-                      _                -> Nothing
-        , if ignoreBack then Just $! backgroundMask io'
-                        else Nothing
-        ]
+            greys :: DelayedMask GreyHistPixel
+            greys  = I.fromFunction (I.shape img) $   (>>= toGreyHistPixel)
+                                                    . (img `I.maskedIndex`)
 
-    toHSV = I.convert
-
-    calcHist = H.histogram Nothing
+        in HeterogeneousHistogram (H.histogram (Just colorsHistSize) colors)
+                                  (H.histogram (Just greysHistSize)  greys)
 
     -- Does an && between two masks boolean pixels.
 --     andMasks :: Mask -> Mask -> Mask
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
+{-# SPECIALIZE fromImage :: Bool -> Bool -> StorageImage
+                         -> HeterogeneousHistogram Float #-}
 
 -- | Constructs an histogram from the given list of weighted colors.
+-- Returns a normalized histogram.
 fromColors :: (Fractional a, Real a, Storable a)
            => [Color a] -> HeterogeneousHistogram a
-fromColors colors =
-    let (greys, colors) = partitionEithers $ map colorToBin colors
+fromColors xs =
+    let (colors, greys) = partitionEithers $ map colorToBin xs
 
-    in normalize (toHist colorsHistSize colors) (toHist initialGreys greys)
+    in normalize $ HeterogeneousHistogram (toHist colorsHistSize colors)
+                                          (toHist greysHistSize  greys)
   where
     colorToBin Color {..} =
-        let !hsv = convert cColor
-        in case pixToBin hsv of
-                Left ix  -> Left  (ix, cWeight)
-                Right ix -> Right (ix, cWeight)
+        case hsvToBin (I.convert cColor) of
+            Left ix  -> Left  (ix, cWeight)
+            Right ix -> Right (ix, cWeight)
 
     toHist histSize ixs =
         let initial = V.replicate (shapeLength histSize) 0
@@ -116,34 +141,39 @@ fromColors colors =
 
 -- -----------------------------------------------------------------------------
 
--- | Computes the average of a set of histograms. Returns a normalized histogram
--- (sum hist == 1.0).
-average :: (Storable a, Real a, Fractional a, Eq sh)
-         => HeterogeneousHistogram a -> HeterogeneousHistogram a
+-- | Computes the average of a set of histograms.
+-- Returns a normalized histogram.
+average :: (Storable a, Real a, Fractional a)
+         => [HeterogeneousHistogram a] -> HeterogeneousHistogram a
+average []     = error "Empty histogram list."
 average [hist] = normalize hist
 average hists  =
-    let hists' = map normalize hists
-        n      = fromIntegral $ length hists
-    in H.map (/ n) $ foldl1 addHists hists'
+    let hists'  = map normalize hists
+        n       = fromIntegral $ length hists
+        sumHist = foldl1 addHeterogeneousHists hists'
+    in HeterogeneousHistogram (H.map (/ n) $ hhColors sumHist)
+                              (H.map (/ n) $ hhGreys  sumHist)
   where
-    addHists !(Histogram sh1 vec1) !(Histogram sh2 vec2)
-        | sh1 /= sh2 = error "Histograms are not of equal size."
-        | otherwise  = let vecSum = V.zipWith (+) vec1 vec2
-                       in Histogram sh1 vecSum
-{-# SPECIALIZE average :: HeterogeneousHistogram Float
+    addHeterogeneousHists hist hist' =
+        HeterogeneousHistogram ((addHists `on` hhColors) hist hist')
+                               ((addHists `on` hhGreys)  hist hist')
+
+    addHists !(Histogram sh vec) !(Histogram sh' vec')
+        | sh /= sh' = error "Histograms are not of equal size."
+        | otherwise = let vecSum = V.zipWith (+) vec vec'
+                      in Histogram sh vecSum
+{-# SPECIALIZE average :: [HeterogeneousHistogram Float]
                        -> HeterogeneousHistogram Float #-}
 
--- | Normalize the 'HeterogeneousHistogram' so the sum of its values equals 1.
+-- | Normalizes the 'HeterogeneousHistogram' so the sum of its values equals 1.
 normalize :: (Storable a, Real a, Fractional a)
           => HeterogeneousHistogram a -> HeterogeneousHistogram a
 normalize HeterogeneousHistogram {..} =
     let !sumColors = histSum hhColors
         !sumGreys  = histSum hhGreys
         !total     = sumColors + sumGreys
-
-        normalize' s = H.normalize (s / total)
-    in HeterogeneousHistogram (normalize' sumColors hhColors)
-                              (normalize' sumGreys  hhGreys)
+    in HeterogeneousHistogram (H.normalize (sumColors / total) $ hhColors)
+                              (H.normalize (sumGreys  / total) $ hhGreys)
   where
     histSum = V.sum . H.vector
 {-# SPECIALIZE normalize :: HeterogeneousHistogram Float
@@ -151,32 +181,34 @@ normalize HeterogeneousHistogram {..} =
 
 -- -----------------------------------------------------------------------------
 
-alphaMask :: RGBAImage -> Mask
+alphaMask :: RGBA -> Mask
 alphaMask = I.map (\pix -> I.rgbaAlpha pix == maxBound)
 
+-- | Detects the background region by flood-filling from the four sides up to
+-- any edge detected by the Canny's algorithm.
 backgroundMask :: StorageImage -> Mask
 backgroundMask img =
     I.map (/= backgroundVal) flooded
   where
-    blurRadius  = 3
-    sobelRadius = 2
-    cannyLow    = 64
-    cannyHigh   = 256
+    !blurRadius  = 3
+    !sobelRadius = 2
+    !cannyLow    = 64
+    !cannyHigh   = 256
 
-    backgroundVal = 127
-    edgeVal       = maxBound
+    !backgroundVal = 127 -- Differentiates background pixels from edge (255) and
+                         -- non-edge (0) pixels.
 
     grey, blurred, edges, closed :: Grey
     !grey    = I.convert img
-    !blurred = I.apply grey blur
+    !blurred = blur `I.apply` grey
     !edges   = canny sobelRadius cannyLow cannyHigh blurred
     !closed  = closing 2 edges
 
     -- Applies a morphological closing of the given radius.
     closing rad img' =
         let img'' :: Grey
-            img'' = img' `I.apply` I.dilate rad
-        in img'' `I.apply` I.erode rad
+            !img'' = I.dilate rad `I.apply` img'
+        in I.erode rad `I.apply` img''
 
     !flooded = I.create $ do
         mut <- I.thaw closed :: ST s (MutableManifest GreyPixel s)
@@ -187,10 +219,13 @@ backgroundMask img =
         return mut
 
     -- Only fills from the point if the point is not on an edge.
+    fillIfNotEdge :: Point -> MutableManifest GreyPixel s -> ST s ()
     fillIfNotEdge pt mut = do
         val <- I.read mut pt
-        when (val /= edgeVal) $
+        when (not $ isEdge val) $
             I.floodFill pt backgroundVal mut
+
+    isEdge = (== maxBound)
 
     blur :: SeparableFilter GreyPixel Float GreyPixel
     !blur = I.gaussianBlur blurRadius Nothing

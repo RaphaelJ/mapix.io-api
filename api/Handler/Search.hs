@@ -23,7 +23,7 @@ import Handler.Internal.Mashape (
     )
 import Handler.Internal.Json ()
 import Handler.Internal.Type (SearchResult (..))
-import Histogram (colorsHist, compareHist, histsAvg, histCompute)
+import Histogram (fromImages, fromColors, compareHeterogeneous)
 import ImageIndex (
       IndexedHistogram
     , getMatchingImages, getUserIndex, iiHist, touchUserIndex, userIndexSize
@@ -32,14 +32,14 @@ import ImageIndex (
 postColorSearchR :: Handler Value
 postColorSearchR = do
     colors <- runInputPost (ireq colorsField "colors")
-    search (colorsHist colors)
+    search (fromColors colors)
   where
     colorsField = jsonField "Invalid colors expression"
 
 postImageSearchR :: Handler Value
 postImageSearchR = do
     ImagesForm {..} <- runInputPost imagesForm
-    search $ histsAvg $ map (histCompute ifIgnoreBack ifIgnoreSkin) ifImages
+    search $ fromImages ifIgnoreBack ifIgnoreSkin ifImages
 
 search :: IndexedHistogram -> Handler Value
 search hist = do
@@ -71,7 +71,7 @@ search hist = do
             let minScore' = fromMaybe confDefaultMinScore minScore
                 results   = [ SearchResult img score
                             | img <- S.toList imgs
-                            , let score = compareHist hist (iiHist img)
+                            , let score = compareHeterogeneous hist (iiHist img)
                             , score >= minScore' ]
                 !nResults = length results
                 sorted    = sortBy (flip compare `on` srScore) results

@@ -1,3 +1,5 @@
+-- | This module contains anything related to the computation and conversion of
+-- histograms.
 module Histogram (
       module Histogram.Color
     , module Histogram.Compare

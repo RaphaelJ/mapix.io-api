@@ -27,7 +27,7 @@ import ImageIndex (
       IndexedImage (..), TagPath (..), TagType (..)
     , tagPath, tagPath2Text, tagPathParser
     )
-import Histogram (Color (..), histColors)
+import Histogram (Color (..), toColors)
 
 instance ToJSON IndexedImage where
     toJSON IndexedImage {..} =
@@ -41,7 +41,7 @@ instance ToJSON IndexedImage where
 instance ToJSON ImageWithColors where
     toJSON (ImageWithColors img) =
         let Object imgJson = toJSON img
-            colors         = histColors (iiHist img) confDefaultMinScore
+            colors         = toColors (iiHist img) confDefaultMinScore
         in Object $! H.insert "colors" (toJSON colors) imgJson
 
 instance ToJSON w => ToJSON (Color w) where

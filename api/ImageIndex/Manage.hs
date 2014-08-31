@@ -188,7 +188,7 @@ newImageCode key ui@(UserIndex {..}) gen = do
 
 addImage :: RandomGen g
         => ByteString -> UserIndex -> g -> Maybe Text -> [Tag]
-        -> HeterogeneousHistogramf
+        -> IndexedHistogram
         -> STM (IndexedImage, g)
 addImage key ui@(UserIndex {..}) gen name tags hist = do
     (code, gen') <- newImageCode key ui gen
