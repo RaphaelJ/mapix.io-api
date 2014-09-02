@@ -55,9 +55,10 @@ data NewImage = NewImage {
     , niIgnoreSkin :: Bool
     }
 
--- | Registers a new image to the index. Returns a '201 Created' status on
--- success. Fails with a '400 Bad request' with an invalid query or a '429
--- Too Many Requests'.
+-- | Registers a new image to the index.
+--
+-- Returns a '201 Created' status on success. Fails with a '400 Bad request'
+-- with an invalid query or a '429 Too Many Requests'.
 postImagesR :: Handler Value
 postImagesR = do
     NewImage {..} <- runInputPost newImageForm
@@ -107,8 +108,9 @@ postImagesR = do
 
     tagListField = jsonField "Invalid tag list"
 
--- | Deletes every image matching the (optional) tag expression. Returns a '204
--- No Content'.
+-- | Deletes every image matching the (optional) tag expression.
+--
+-- Returns a '204 No Content'.
 deleteImagesR :: Handler ()
 deleteImagesR = do
     tagExpr <- runInputGet (iopt tagExpressionField "filter")
@@ -124,8 +126,9 @@ deleteImagesR = do
 
     sendResponseStatus noContent204 ()
 
--- | Returns the data associated with an image. Fails with a '404 Not found'
--- error when the image is not in the index.
+-- | Returns the data associated with an image.
+--
+-- Fails with a '404 Not found' error when the image is not in the index.
 getImageR :: ImageCode -> Handler Value
 getImageR code = do
     username    <- mhUser <$> getMashapeHeaders

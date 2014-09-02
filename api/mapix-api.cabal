@@ -35,6 +35,7 @@ library
                      ImageIndex
                      ImageIndex.Instance
                      ImageIndex.Manage
+                     ImageIndex.Search
                      ImageIndex.Tag
                      ImageIndex.Type
                      Import

@@ -5,10 +5,7 @@ module Handler.Search (
 import Import
 
 import Control.Monad.STM (atomically)
-import Data.Function
-import Data.List
 import Data.Maybe
-import qualified Data.Set as S
 import Data.Time.Clock (getCurrentTime)
 
 import Handler.Config (confDefaultMinScore)
@@ -22,27 +19,26 @@ import Handler.Internal.Mashape (
       getMashapeHeaders, maxIndexSize, mhUser, mhSubscription
     )
 import Handler.Internal.Json ()
-import Handler.Internal.Type (SearchResult (..))
-import Histogram (fromImages, fromColors, compareHeterogeneous)
+import Histogram (fromImages, fromColors)
 import ImageIndex (
       IndexedHistogram
-    , getMatchingImages, getUserIndex, iiHist, touchUserIndex, userIndexSize
+    , getMatchingImages, getUserIndex, touchUserIndex, userIndexSize, search
     )
 
 postColorSearchR :: Handler Value
 postColorSearchR = do
     colors <- runInputPost (ireq colorsField "colors")
-    search (fromColors colors)
+    search' $ fromColors colors
   where
     colorsField = jsonField "Invalid colors expression"
 
 postImageSearchR :: Handler Value
 postImageSearchR = do
     ImagesForm {..} <- runInputPost imagesForm
-    search $ fromImages ifIgnoreBack ifIgnoreSkin ifImages
+    search' $ fromImages ifIgnoreBack ifIgnoreSkin ifImages
 
-search :: IndexedHistogram -> Handler Value
-search hist = do
+search' :: IndexedHistogram -> Handler Value
+search' hist = do
     listingParams <- runInputPost listingForm
     tagExpr       <- runInputPost filterForm
     minScore      <- runInputPost (iopt scoreField "min_score")
@@ -55,26 +51,18 @@ search hist = do
     currentTime <- lift getCurrentTime
 
     mImgs <- liftIO $ atomically $ do
-        ui <- getUserIndex ii username currentTime
+        ui   <- getUserIndex ii username currentTime
         size <- userIndexSize ui
 
         let indexIsFull = maybe False (size >) maxSize
 
-        if indexIsFull
-            then return Nothing
-            else do
-                touchUserIndex ii ui currentTime
-                Just <$> getMatchingImages ui tagExpr
+        if indexIsFull then return Nothing
+                       else do touchUserIndex ii ui currentTime
+                               Just <$> getMatchingImages ui tagExpr
 
     case mImgs of
-        Just imgs -> do
+        Just imgs ->
             let minScore' = fromMaybe confDefaultMinScore minScore
-                results   = [ SearchResult img score
-                            | img <- S.toList imgs
-                            , let score = compareHeterogeneous hist (iiHist img)
-                            , score >= minScore' ]
-                !nResults = length results
-                sorted    = sortBy (flip compare `on` srScore) results
-
-            returnJson $ listing listingParams (Just nResults) sorted
+                results   = search minScore' imgs hist
+            in returnJson $ listing listingParams Nothing results
         Nothing   -> apiFail IndexExhausted

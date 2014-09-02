@@ -24,7 +24,7 @@ import Yesod.Core.Json
 import Handler.Config (confDefaultMinScore)
 import Handler.Internal.Type
 import ImageIndex (
-      IndexedImage (..), TagPath (..), TagType (..)
+      IndexedImage (..), TagPath (..), TagType (..), SearchResult (..)
     , tagPath, tagPath2Text, tagPathParser
     )
 import Histogram (Color (..), toColors)

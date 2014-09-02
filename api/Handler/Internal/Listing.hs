@@ -1,6 +1,6 @@
 -- | Utility to create paginated listings of objects.
 module Handler.Internal.Listing (
-      Listing (..), ListingForm (..), listing, listingForm
+      Listing, ListingForm (..), listing, listingForm
     ) where
 
 import Prelude
@@ -21,10 +21,10 @@ data Listing a = Listing {
     }
 
 instance ToJSON a => ToJSON (Listing a) where
-    toJSON Listing {..} = object [ "total_count"  .= lTotalCount
-                                 , "offset"       .= lOffset
-                                 , "count"        .= lCount
-                                 , "results"      .= lObjects ]
+    toJSON Listing {..} = object [ "total_count" .= lTotalCount
+                                 , "offset"      .= lOffset
+                                 , "count"       .= lCount
+                                 , "results"     .= lObjects ]
 
 data ListingForm = ListingForm {
       lfCount    :: Maybe Int
