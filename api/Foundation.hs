@@ -1,6 +1,7 @@
 module Foundation where
 
 import Prelude
+
 import qualified Data.ByteString.Lazy as B
 import Database.Persist.Sql (SqlPersistT)
 import Network.HTTP.Conduit (Manager)

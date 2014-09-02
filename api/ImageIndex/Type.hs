@@ -15,6 +15,8 @@ import Histogram (HeterogeneousHistogram)
 
 -- | ImageCodes are unique randomly generated identifiers used to identify
 -- images.
+--
+-- An 'ImageCode' is only unique for an user.
 newtype ImageCode = ImageCode { icValue :: Text }
     deriving (Eq, Ord, IsString, PersistField, PathPiece, ToJSON)
 
@@ -42,7 +44,7 @@ data UserIndex = UserIndex {
     , uiLRCNext :: !(TVar (Maybe UserIndex)) -- ^ Less recently called user.
     }
 
--- Here we define two types of tags.
+-- Here we define two kinds of tags.
 -- The RootTag is used in the UserIndex to indicate the "catch all" tag. This
 -- tag doesn't have any parent and has no name (it catches the empty tag
 -- string). It contains only images which aren't registered to any tag.

@@ -29,7 +29,6 @@ import Yesod.Core.Types (loggerSet, Logger (Logger))
 import Yesod.Default.Config
 import Yesod.Default.Main
 
-import Model
 import Settings
 
 import Handler.Image
@@ -37,6 +36,7 @@ import Handler.Search
 import Handler.Tag
 
 import ImageIndex (newIndex)
+import ImageIndex.Persistent (migrateIndex)
 
 mkYesodDispatch "App" resourcesApp
 
@@ -82,7 +82,7 @@ makeFoundation conf = do
 
     -- Perform database migration using our application's logging settings.
     runLoggingT
-        (Database.Persist.runPool dbconf (runMigration migrateAll) p)
+        (Database.Persist.runPool dbconf (runMigration migrateIndex) p)
         (messageLoggerSource foundation logger)
 
     return foundation
