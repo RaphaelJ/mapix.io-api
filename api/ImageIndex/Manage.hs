@@ -8,8 +8,8 @@ module ImageIndex.Manage (
     , getTag, lookupTag, removeTag, removeTagIfOrphan, getTagImages
     -- * Images management
     , imageCodeLength, newImageCode
-    , addImage, lookupImage, removeImage, bindImage, unBindImage, bindImageTag
-    , unBindImageTag, getImages
+    , addImage, newImage, lookupImage, removeImage, bindImage, unBindImage
+    , bindImageTag, unBindImageTag, getImages
     )
     where
 
@@ -46,6 +46,7 @@ newIndex = ImageIndex <$> newTVarIO M.empty <*> newTVarIO Nothing
 -- Users -----------------------------------------------------------------------
 
 -- | Searches for an existing user index entry by the user name and returns it.
+--
 -- If a such entry doesn\'t exist, creates a new one.
 getUserIndex :: ImageIndex -> UserName -> UTCTime -> STM UserIndex
 getUserIndex ii@(ImageIndex {..}) username currentTime = do
@@ -186,15 +187,25 @@ newImageCode key ui@(UserIndex {..}) gen = do
 
 -- Images ----------------------------------------------------------------------
 
-addImage :: RandomGen g
-        => ByteString -> UserIndex -> g -> Maybe Text -> [Tag]
-        -> IndexedHistogram
-        -> STM (IndexedImage, g)
-addImage key ui@(UserIndex {..}) gen name tags hist = do
+-- | Creates an 'IndexedImage' object in the index and generates a new
+-- 'ImageCode' for it.
+newImage :: RandomGen g
+         => ByteString -> UserIndex -> g -> Maybe Text -> [Tag]
+         -> IndexedHistogram
+         -> STM (IndexedImage, g)
+newImage key ui gen name tags hist = do
     (code, gen') <- newImageCode key ui gen
+    (,) <$> addImage ui code name tags hist <*> pure gen'
+
+-- | Creates aand generates a new
+-- 'ImageCode' for it.n 'IndexedImage' object in the index from an already generated
+-- 'ImageCode'.
+addImage :: UserIndex -> ImageCode -> Maybe Text -> [Tag] -> IndexedHistogram
+        -> STM IndexedImage
+addImage ui code name tags hist = do
     let !img = IndexedImage code name (S.fromList tags) hist
     bindImage ui img
-    return (img, gen')
+    return img
 
 lookupImage :: UserIndex -> ImageCode -> STM (Maybe IndexedImage)
 lookupImage UserIndex {..} code = M.lookup code <$> readTVar uiImages

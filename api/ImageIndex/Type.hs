@@ -3,13 +3,16 @@ module ImageIndex.Type where
 import Prelude
 
 import Control.Concurrent.STM.TVar (TVar)
+import Control.Monad
 import Data.Function
 import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.String
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
-import Yesod
+import Database.Persist (PersistField)
+import Database.Persist.Sql (PersistFieldSql (..))
+import Yesod (PathPiece, ToJSON)
 
 import Histogram (HeterogeneousHistogram)
 
@@ -44,14 +47,17 @@ data UserIndex = UserIndex {
     , uiLRCNext :: !(TVar (Maybe UserIndex)) -- ^ Less recently called user.
     }
 
+newtype TagPath = TagPath { tpNodes :: [Text] }
+    deriving (Eq, Ord, Read, PersistField)
+
+instance PersistFieldSql TagPath where
+    sqlType = sqlType . (tpNodes `liftM`)
+
 -- Here we define two kinds of tags.
 -- The RootTag is used in the UserIndex to indicate the "catch all" tag. This
 -- tag doesn't have any parent and has no name (it catches the empty tag
 -- string). It contains only images which aren't registered to any tag.
 -- The SubTag is used for "real" tags of the hierarchy.
-
-newtype TagPath = TagPath { tpNodes :: [Text] }
-    deriving (Eq, Ord, Read)
 
 data TagType = RootTag | SubTag !Text !Tag -- ^ Tag\'s name and sub-tag.
     deriving (Eq, Ord)

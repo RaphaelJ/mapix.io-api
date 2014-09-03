@@ -7,9 +7,11 @@ import Yesod.Persist
 
 import Histogram ()
 import ImageIndex.Instance ()
-import ImageIndex.Type (IndexedHistogram, ImageCode, UserName)
+import ImageIndex.Type (IndexedHistogram, ImageCode, TagPath, UserName)
 
-share [mkPersist sqlOnlySettings, mkMigrate "migrateIndex"] [persistLowerCase|
+share [ mkPersist sqlOnlySettings
+      , mkDeleteCascade sqlOnlySettings
+      , mkMigrate "migrateIndex"] [persistLowerCase|
 User
     name                        UserName
 
@@ -22,19 +24,13 @@ Image
     name                        Text Maybe
     histogram                   IndexedHistogram
 
-    UniqueImageCodeOwner        code owner
-    deriving Show
-
-Tag
-    owner                       UserId
-    name                        Text
-    parent                      TagId Maybe
-
+    UniqueImageCodeOwner        owner code
     deriving Show
 
 ImageTag
     image                       ImageId
-    tag                         TagId
+    tag                         TagPath
 
+    UniqueImageTagImageTag      image tag
     deriving Show
 |]

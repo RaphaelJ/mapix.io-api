@@ -26,7 +26,7 @@ import Handler.Internal.Mashape (
 import Handler.Internal.Type (ImageWithColors (..))
 import ImageIndex (
       ImageCode, IndexedImage (..), TagPath
-    , addImage, getMatchingImages, getTag, getUserIndex, lookupImage
+    , getMatchingImages, getTag, getUserIndex, lookupImage, newImage
     , removeImage, touchUserIndex, userIndexSize
     )
 import Histogram (fromImages)
@@ -89,7 +89,7 @@ postImagesR = do
             then return Nothing
             else do
                 tags     <- mapM (getTag ui) (fromMaybe [] niTags)
-                (img, _) <- addImage key ui gen niName tags hist
+                (img, _) <- newImage key ui gen niName tags hist
                 touchUserIndex ii ui currentTime
                 return $! Just img
 

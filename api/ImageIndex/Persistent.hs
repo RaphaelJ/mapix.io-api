@@ -5,7 +5,9 @@
 module ImageIndex.Persistent (
       module ImageIndex.Persistent.Manage
     , module ImageIndex.Persistent.Model
+    , module ImageIndex.Persistent.Restore
     ) where
 
 import ImageIndex.Persistent.Manage
 import ImageIndex.Persistent.Model
+import ImageIndex.Persistent.Restore
