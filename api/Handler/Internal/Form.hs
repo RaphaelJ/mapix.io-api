@@ -85,7 +85,7 @@ imagesField =
 
     -- Downloads and opens the images from the URLs.
     readUrls urls = do
-        manager <- httpManager <$> getYesod
+        manager <- httpManager <$> lift getYesod
         forM urls $ \url ->
             case parseUrl (T.unpack url) of
                 Nothing  -> throwE InvalidUrl
@@ -100,7 +100,7 @@ imagesField =
     -- Consumes the ByteString stream up to the maximum file size.
     -- Throws an error if the stream is longer.
     sinkLbsMaxSize maxFileSize
-        | maxFileSize < 0 = lift $ throwE TooLarge
+        | maxFileSize < 0 = lift $ lift $ throwE TooLarge
         | otherwise       = do
             mBs <- await
             case mBs of
@@ -110,7 +110,7 @@ imagesField =
 
     -- Opens the image from a conduit source.
     readSource source = do
-        bs <- source $$ sinkLbsMaxSize confMaxFileSize
+        bs <- runResourceT $ source $$ sinkLbsMaxSize confMaxFileSize
 
         eImg <- liftIO $ I.loadBS Nothing (S.concat bs)
 
