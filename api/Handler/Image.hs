@@ -5,10 +5,8 @@ module Handler.Image (
 
 import Import
 
-import Control.Monad.STM (atomically)
 import qualified Data.Foldable as F
 import Data.Maybe
-import Data.Time.Clock (getCurrentTime)
 import qualified Data.Set as S
 import Network.HTTP.Types.Status (created201, noContent204)
 import System.Random (newStdGen)
@@ -27,7 +25,7 @@ import Handler.Internal.Type (ImageWithColors (..))
 import ImageIndex (
       ImageCode, IndexedImage (..), TagPath
     , getMatchingImages, getTag, getUserIndex, lookupImage, newImage
-    , removeImage, touchUserIndex, userIndexSize
+    , removeImage, runTransaction, touchUserIndex, userIndexSize
     )
 import Histogram (fromImages)
 
@@ -37,12 +35,11 @@ getImagesR = do
     listingParams <- runInputGet listingForm
     tagExpr       <- runInputGet filterForm
 
-    username    <- mhUser <$> getMashapeHeaders
-    ii          <- imageIndex <$> getYesod
-    currentTime <- lift getCurrentTime
+    username <- mhUser <$> getMashapeHeaders
+    ii       <- imageIndex <$> getYesod
 
-    imgs <- liftIO $ atomically $ do
-        ui <- getUserIndex ii username currentTime
+    imgs <- runTransaction $ do
+        ui <- getUserIndex ii username
         getMatchingImages ui tagExpr
 
     returnJson $ listing listingParams (Just $! S.size imgs) (S.toList imgs)
@@ -66,21 +63,20 @@ postImagesR = do
     let !hist = fromImages niIgnoreBack niIgnoreSkin niImages
     liftIO $ print hist
 
-    headers     <- getMashapeHeaders
+    headers <- getMashapeHeaders
     let username = mhUser headers
         maxSize  = maxIndexSize $ mhSubscription headers
 
-    app         <- getYesod
+    app     <- getYesod
     let key = encryptKey app
         ii  = imageIndex app
 
-    currentTime <- lift getCurrentTime
-    gen         <- lift newStdGen
+    gen     <- lift newStdGen
 
     -- Tries to add the image. Returns Nothing if the index has too
     -- many images.
-    mImg <- liftIO $ atomically $ do
-        ui   <- getUserIndex ii username currentTime
+    mImg <- runTransaction $ do
+        ui   <- getUserIndex ii username
         size <- userIndexSize ui
 
         let indexIsFull = maybe False (size >=) maxSize
@@ -90,7 +86,7 @@ postImagesR = do
             else do
                 tags     <- mapM (getTag ui) (fromMaybe [] niTags)
                 (img, _) <- newImage key ui gen niName tags hist
-                touchUserIndex ii ui currentTime
+                touchUserIndex ii ui
                 return $! Just img
 
     case mImg of
@@ -115,12 +111,11 @@ deleteImagesR :: Handler ()
 deleteImagesR = do
     tagExpr <- runInputGet (iopt tagExpressionField "filter")
 
-    username    <- mhUser <$> getMashapeHeaders
-    ii          <- imageIndex <$> getYesod
-    currentTime <- lift getCurrentTime
+    username <- mhUser <$> getMashapeHeaders
+    ii       <- imageIndex <$> getYesod
 
-    liftIO $ atomically $ do
-        ui   <- getUserIndex ii username currentTime
+    runTransaction $ do
+        ui   <- getUserIndex ii username
         imgs <- getMatchingImages ui tagExpr
         F.mapM_ (removeImage ui) imgs
 
@@ -133,10 +128,9 @@ getImageR :: ImageCode -> Handler Value
 getImageR code = do
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
-    currentTime <- lift getCurrentTime
 
-    mImg <- liftIO $ atomically $ do
-        ui <- getUserIndex ii username currentTime
+    mImg <- runTransaction $ do
+        ui <- getUserIndex ii username
         lookupImage ui code
 
     case mImg of Just img -> returnJson $ ImageWithColors img
@@ -146,12 +140,11 @@ getImageR code = do
 -- when the image is not in the index.
 deleteImageR :: ImageCode -> Handler ()
 deleteImageR code = do
-    username    <- mhUser <$> getMashapeHeaders
-    ii          <- imageIndex <$> getYesod
-    currentTime <- lift getCurrentTime
+    username <- mhUser <$> getMashapeHeaders
+    ii       <- imageIndex <$> getYesod
 
-    exists <- liftIO $ atomically $ do
-        ui <- getUserIndex ii username currentTime
+    exists <- runTransaction $ do
+        ui   <- getUserIndex ii username
         mImg <- lookupImage ui code
         case mImg of Just img -> removeImage ui img >> return True
                      Nothing  -> return False

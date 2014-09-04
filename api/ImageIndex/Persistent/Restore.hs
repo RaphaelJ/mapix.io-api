@@ -1,18 +1,14 @@
-module ImageIndex.Persistent.Restore (restore) where
+module ImageIndex.Persistent.Restore (restoreIndex) where
 
 import Prelude
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.STM (atomically)
 import Database.Persist
 import Database.Persist.Sql
 import Data.Text (Text)
-import Data.Time.Clock (getCurrentTime)
-import Yesod.Persist
 
-import ImageIndex.Manage (addImage, getTag, getUserIndex, newIndex)
+import ImageIndex.Manage (addImage, getTag, getUserIndex, runTransaction)
 import ImageIndex.Persistent.Model
 import ImageIndex.Type (
       ImageIndex, ImageCode, IndexedHistogram, UserName, TagPath
@@ -30,12 +26,11 @@ data FreezedIndexedImage = FreezedIndexedImage {
     , fiiHist :: !IndexedHistogram
     }
 
--- | Creates a new 'ImageIndex' from the current state of the database.
-restore :: ( MonadIO (YesodDB site), Functor (YesodDB site)
-           , PersistUnique (YesodDB site), PersistQuery (YesodDB site)
-           , PersistMonadBackend (YesodDB site) ~ SqlBackend)
-        => YesodDB site ImageIndex
-restore = do
+-- | Restores an 'ImageIndex' from the current state of the database.
+restoreIndex :: ( PersistQuery m, Functor m
+                , PersistMonadBackend m ~ SqlBackend)
+             =>  ImageIndex -> m ()
+restoreIndex ii = do
     users <- selectList [] []
 
     -- Loads the entire index in an immutable strucute.
@@ -53,16 +48,10 @@ restore = do
     -- Pushs the whole immutable index in the transactional index in a single
     -- transaction.
 
-    liftIO $ do
-        ii          <- newIndex
-        currentTime <- getCurrentTime
+    runTransaction $ do
+        forM_ fuis $ \(FreezedUserIndex {..}) -> do
+            ui <- getUserIndex ii fuiName
 
-        atomically $ do
-            forM_ fuis $ \(FreezedUserIndex {..}) -> do
-                ui <- getUserIndex ii fuiName currentTime
-
-                forM_ fuiImages $ \(FreezedIndexedImage {..}) -> do
-                    tags <- mapM (getTag ui) fiiTags
-                    addImage ui fiiCode fiiName tags fiiHist
-
-            return ii
+            forM_ fuiImages $ \(FreezedIndexedImage {..}) -> do
+                tags <- mapM (getTag ui) fiiTags
+                addImage ui fiiCode fiiName tags fiiHist

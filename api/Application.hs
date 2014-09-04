@@ -9,6 +9,7 @@ module Application (
 import Import
 
 import Control.Monad.Logger (runLoggingT)
+import Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default (def)
@@ -36,7 +37,7 @@ import Handler.Search
 import Handler.Tag
 
 import ImageIndex (newIndex)
-import ImageIndex.Persistent (migrateIndex)
+import ImageIndex.Persistent (migrateIndex, restoreIndex)
 
 mkYesodDispatch "App" resourcesApp
 
@@ -81,8 +82,10 @@ makeFoundation conf = do
         foundation = App conf p manager dbconf logger key ii
 
     -- Perform database migration using our application's logging settings.
-    runLoggingT
-        (Database.Persist.runPool dbconf (runMigration migrateIndex) p)
+    runResourceT $ runLoggingT
+        (Database.Persist.runPool dbconf (   runMigration migrateIndex
+                                          >> restoreIndex ii)
+                                  p)
         (messageLoggerSource foundation logger)
 
     return foundation

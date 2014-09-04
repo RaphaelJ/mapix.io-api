@@ -3,15 +3,15 @@ module Handler.Tag (getTagsR, getTagR, deleteTagR) where
 import Import
 
 import Control.Concurrent.STM (readTVar)
-import Control.Monad.STM (STM, atomically)
-import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Types.Status (noContent204)
 
 import Handler.Internal.Mashape (getMashapeHeaders, mhUser)
 import Handler.Internal.Json ()
 import Handler.Internal.Type (StaticTag (..))
 import ImageIndex (
-      Tag (..), TagPath, getUserIndex, lookupTag, removeTag, uiRootTag
+      IndexSTM, Tag (..), TagPath
+    , getUserIndex, liftSTM, lookupTag, removeTag, runTransaction
+    , uiRootTag
     )
 
 -- Handlers --------------------------------------------------------------------
@@ -19,12 +19,11 @@ import ImageIndex (
 -- | Returns the hierarchy of tags.
 getTagsR :: Handler Value
 getTagsR = do
-    username    <- mhUser <$> getMashapeHeaders
-    ii          <- imageIndex <$> getYesod
-    currentTime <- lift getCurrentTime
+    username <- mhUser <$> getMashapeHeaders
+    ii       <- imageIndex <$> getYesod
 
-    rootTag <- liftIO $ atomically $ do
-        ui <- getUserIndex ii username currentTime
+    rootTag <- runTransaction $ do
+        ui <- getUserIndex ii username
         getStaticTag $ uiRootTag ui
 
     returnJson rootTag
@@ -33,12 +32,11 @@ getTagsR = do
 -- tag doesn't exist.
 getTagR :: TagPath -> Handler Value
 getTagR path = do
-    username    <- mhUser <$> getMashapeHeaders
-    ii          <- imageIndex <$> getYesod
-    currentTime <- lift getCurrentTime
+    username <- mhUser <$> getMashapeHeaders
+    ii       <- imageIndex <$> getYesod
 
-    mTag <- liftIO $ atomically $ do
-        ui   <- getUserIndex ii username currentTime
+    mTag <- runTransaction $ do
+        ui   <- getUserIndex ii username
         mTag <- lookupTag ui path
         case mTag of Just tag -> Just <$> getStaticTag tag
                      Nothing  -> return Nothing
@@ -52,10 +50,9 @@ deleteTagR :: TagPath -> Handler Value
 deleteTagR path = do
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
-    currentTime <- lift getCurrentTime
 
-    exists <- liftIO $ atomically $ do
-        ui <- getUserIndex ii username currentTime
+    exists <- runTransaction $ do
+        ui <- getUserIndex ii username
         mTag <- lookupTag ui path
         case mTag of Nothing  -> return False
                      Just tag -> removeTag ui tag >> return True
@@ -65,5 +62,5 @@ deleteTagR path = do
 
 -- -----------------------------------------------------------------------------
 
-getStaticTag :: Tag -> STM StaticTag
-getStaticTag Tag {..} = StaticTag tType <$> readTVar tSubTags
+getStaticTag :: Tag -> IndexSTM StaticTag
+getStaticTag Tag {..} = StaticTag tType <$> liftSTM (readTVar tSubTags)

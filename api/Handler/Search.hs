@@ -4,9 +4,7 @@ module Handler.Search (
 
 import Import
 
-import Control.Monad.STM (atomically)
 import Data.Maybe
-import Data.Time.Clock (getCurrentTime)
 
 import Handler.Config (confDefaultMinScore)
 import Handler.Error (APIError (IndexExhausted), apiFail)
@@ -22,7 +20,8 @@ import Handler.Internal.Json ()
 import Histogram (fromImages, fromColors)
 import ImageIndex (
       IndexedHistogram
-    , getMatchingImages, getUserIndex, touchUserIndex, userIndexSize, search
+    , getMatchingImages, getUserIndex, runTransaction, search, touchUserIndex
+    , userIndexSize
     )
 
 postColorSearchR :: Handler Value
@@ -43,21 +42,20 @@ search' hist = do
     tagExpr       <- runInputPost filterForm
     minScore      <- runInputPost (iopt scoreField "min_score")
 
-    headers     <- getMashapeHeaders
+    headers <- getMashapeHeaders
     let username = mhUser headers
         maxSize  = maxIndexSize $ mhSubscription headers
 
-    ii          <- imageIndex <$> getYesod
-    currentTime <- lift getCurrentTime
+    ii      <- imageIndex <$> getYesod
 
-    mImgs <- liftIO $ atomically $ do
-        ui   <- getUserIndex ii username currentTime
+    mImgs <- runTransaction $ do
+        ui   <- getUserIndex ii username
         size <- userIndexSize ui
 
         let indexIsFull = maybe False (size >) maxSize
 
         if indexIsFull then return Nothing
-                       else do touchUserIndex ii ui currentTime
+                       else do touchUserIndex ii ui
                                Just <$> getMatchingImages ui tagExpr
 
     case mImgs of

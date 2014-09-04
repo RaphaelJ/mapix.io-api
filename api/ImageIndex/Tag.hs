@@ -7,7 +7,6 @@ module ImageIndex.Tag (
 import Prelude
 
 import Control.Applicative ((<$>), (<*), (<*>))
-import Control.Concurrent.STM (STM)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
@@ -59,10 +58,11 @@ tagExpressionParser =
         <|> between (char '(' >> spaces) (char ')' >> spaces) orExpr
         <|> (TagName <$> (tagPathParser <* spaces))
 
--- | Searches for images in the user\'s index which match the given tag
+-- | Searches for images in the user's index which match the given tag
 -- expression. If no 'TagExpression' is given, return the 'RootTag' images.
 -- Returns an empty set if the tag doesn't exist.
-getMatchingImages :: UserIndex -> Maybe TagExpression -> STM (Set IndexedImage)
+getMatchingImages :: UserIndex -> Maybe TagExpression
+                  -> IndexSTM (Set IndexedImage)
 getMatchingImages ui Nothing     = getTagImages (uiRootTag ui)
 getMatchingImages ui (Just expr) =
     go expr

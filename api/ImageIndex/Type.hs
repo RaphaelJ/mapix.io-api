@@ -4,6 +4,8 @@ import Prelude
 
 import Control.Concurrent.STM.TVar (TVar)
 import Control.Monad
+import Control.Monad.Trans.Reader (ReaderT)
+import Control.Monad.STM (STM)
 import Data.Function
 import Data.Map.Strict (Map)
 import Data.Set (Set)
@@ -15,6 +17,10 @@ import Database.Persist.Sql (PersistFieldSql (..))
 import Yesod (PathPiece, ToJSON)
 
 import Histogram (HeterogeneousHistogram)
+
+-- | Runs the 'ImageIndex' transaction inside a reader monad as some actions
+-- need to known at what time the transaction was initiated.
+type IndexSTM a = ReaderT UTCTime STM a
 
 -- | ImageCodes are unique randomly generated identifiers used to identify
 -- images.
@@ -29,7 +35,7 @@ data ImageIndex = ImageIndex {
     -- Recent Call queue for user indexes. Indexes are kept sorted by descending
     -- last usage order so we can quickly remove indexes which haven't been used
     -- for a long time.
-    , iiLRCFirst  :: !(TVar (Maybe UserIndex)) -- ^ Most recent call.
+    , iiLRCFirst      :: !(TVar (Maybe UserIndex)) -- ^ Most recent call.
     , iiLRCLast   :: !(TVar (Maybe UserIndex)) -- ^ Least recent call.
     }
 

@@ -29,5 +29,3 @@ getUser username = do
             userId <- insert user
             return $! Entity userId user
 
-
-

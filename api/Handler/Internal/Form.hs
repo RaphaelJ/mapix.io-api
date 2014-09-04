@@ -7,7 +7,7 @@ import Import
 
 import qualified Control.Exception as E
 import Control.Monad
-import Control.Monad.Reader (runReaderT)
+import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson (decodeStrict', encode)
