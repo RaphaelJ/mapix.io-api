@@ -25,8 +25,23 @@ library
                      Handler.Internal.Type
                      Handler.Internal.Mashape
                      Histogram
+                     Histogram.Color
+                     Histogram.Compare
+                     Histogram.Compress
+                     Histogram.Compute
+                     Histogram.Config
+                     Histogram.Serialize
+                     Histogram.Type
                      ImageIndex
+                     ImageIndex.Instance
+                     ImageIndex.Manage
                      ImageIndex.Persistent
+                     ImageIndex.Persistent.Manage
+                     ImageIndex.Persistent.Model
+                     ImageIndex.Persistent.Restore
+                     ImageIndex.Search
+                     ImageIndex.Tag
+                     ImageIndex.Type
                      Import
                      Model
                      Settings
