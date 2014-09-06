@@ -3,7 +3,7 @@ module Foundation where
 import Prelude
 
 import qualified Data.ByteString.Lazy as B
-import Database.Persist.Sql (SqlPersistT)
+import Database.Persist.Sql (SqlBackend)
 import Network.HTTP.Conduit (Manager)
 import Yesod
 import Yesod.Core.Types (Logger)
@@ -52,9 +52,9 @@ instance Yesod App where
     shouldLog _ _source level =
         development || level == LevelWarn || level == LevelError
 
-
 instance YesodPersist App where
-    type YesodPersistBackend App = SqlPersistT
+    type YesodPersistBackend App = SqlBackend
+
     runDB = defaultRunDB persistConfig connPool
 
 instance YesodPersistRunner App where

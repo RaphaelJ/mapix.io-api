@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.IO.Class
 import Database.Persist
 import Database.Persist.Sql
 import Data.Text (Text)
@@ -27,9 +28,7 @@ data FreezedIndexedImage = FreezedIndexedImage {
     }
 
 -- | Restores an 'ImageIndex' from the current state of the database.
-restoreIndex :: ( PersistQuery m, Functor m
-                , PersistMonadBackend m ~ SqlBackend)
-             =>  ImageIndex -> m ()
+restoreIndex :: (MonadIO m, Functor m) => ImageIndex -> SqlPersistT m ()
 restoreIndex ii = do
     users <- selectList [] []
 
@@ -46,7 +45,7 @@ restoreIndex ii = do
         return $! FreezedUserIndex username fiis
 
     -- Pushs the whole immutable index in the transactional index in a single
-    -- transaction.
+    -- STM transaction.
 
     runTransaction $ do
         forM_ fuis $ \(FreezedUserIndex {..}) -> do

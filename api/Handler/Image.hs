@@ -5,6 +5,7 @@ module Handler.Image (
 
 import Import
 
+import Control.Monad
 import qualified Data.Foldable as F
 import Data.Maybe
 import qualified Data.Set as S
@@ -27,6 +28,7 @@ import ImageIndex (
     , getMatchingImages, getTag, getUserIndex, lookupImage, newImage
     , removeImage, runTransaction, touchUserIndex, userIndexSize
     )
+import qualified ImageIndex.Persistent as DB
 import Histogram (fromImages)
 
 -- | Lists every image of the user.
@@ -75,19 +77,29 @@ postImagesR = do
 
     -- Tries to add the image. Returns Nothing if the index has too
     -- many images.
-    mImg <- runTransaction $ do
-        ui   <- getUserIndex ii username
-        size <- userIndexSize ui
+    mImg <- runDB $ do
+        mImg <- runTransaction $ do
+            ui   <- getUserIndex ii username
+            size <- userIndexSize ui
 
-        let indexIsFull = maybe False (size >=) maxSize
+            let indexIsFull = maybe False (size >=) maxSize
 
-        if indexIsFull
-            then return Nothing
-            else do
-                tags     <- mapM (getTag ui) (fromMaybe [] niTags)
-                (img, _) <- newImage key ui gen niName tags hist
-                touchUserIndex ii ui
-                return $! Just img
+            if indexIsFull
+                then return Nothing
+                else do
+                    tags     <- mapM (getTag ui) (fromMaybe [] niTags)
+                    (img, _) <- newImage key ui gen niName tags hist
+                    touchUserIndex ii ui
+                    return $! Just img
+
+        -- If the in-memory transaction succeed, saves the image in the
+        -- persistent database.
+        case mImg of
+             Just img -> do
+                 Entity userId _ <- DB.getUser username
+                 _ <- DB.addImage userId img
+                 return $ Just img
+             Nothing  -> return Nothing
 
     case mImg of
         Just img -> do
@@ -114,10 +126,16 @@ deleteImagesR = do
     username <- mhUser <$> getMashapeHeaders
     ii       <- imageIndex <$> getYesod
 
-    runTransaction $ do
-        ui   <- getUserIndex ii username
-        imgs <- getMatchingImages ui tagExpr
-        F.mapM_ (removeImage ui) imgs
+    runDB $ do
+        imgs <- runTransaction $ do
+            ui   <- getUserIndex ii username
+            imgs <- getMatchingImages ui tagExpr
+            F.mapM_ (removeImage ui) imgs
+            return imgs
+
+        when (not $ S.null imgs) $ do
+            Entity userId _ <- DB.getUser username
+            F.mapM_ (DB.removeImage userId) imgs
 
     sendResponseStatus noContent204 ()
 
@@ -143,11 +161,22 @@ deleteImageR code = do
     username <- mhUser <$> getMashapeHeaders
     ii       <- imageIndex <$> getYesod
 
-    exists <- runTransaction $ do
-        ui   <- getUserIndex ii username
-        mImg <- lookupImage ui code
-        case mImg of Just img -> removeImage ui img >> return True
-                     Nothing  -> return False
+    exists <- runDB $ do
+        mImg <- runTransaction $ do
+            ui   <- getUserIndex ii username
+
+            mImg <- lookupImage ui code
+            case mImg of Just img -> removeImage ui img
+                         Nothing  -> mzero
+
+            return mImg
+
+        case mImg of
+            Just img -> do
+                Entity userId _ <- DB.getUser username
+                DB.removeImage userId img
+                return True
+            Nothing  -> return False
 
     if exists then sendResponseStatus noContent204 ()
               else notFound

@@ -1,25 +1,25 @@
 module ImageIndex.Persistent.Manage (
       getUser
+    , addImage, removeImage
     ) where
 
 import Prelude
 
+import Control.Monad.IO.Class
 import Database.Persist
+import qualified Data.Set as S
 import Database.Persist.Sql
-import Yesod.Persist
 
 import ImageIndex.Persistent.Model
-import ImageIndex.Type (UserName)
+import ImageIndex.Type (IndexedImage (..), UserName)
+import ImageIndex.Tag (tagPath)
 
 -- Users -----------------------------------------------------------------------
 
 -- | Searches for an existing user index entry by the user name and returns it.
 --
 -- If a such entry doesn\'t exist, creates a new one.
-getUser :: ( Monad (YesodDB site), PersistUnique (YesodDB site)
-           , PersistStore  (YesodDB site)
-           , PersistMonadBackend (YesodDB site) ~ SqlBackend)
-        => UserName -> YesodDB site (Entity User)
+getUser :: MonadIO m => UserName -> SqlPersistT m (Entity User)
 getUser username = do
     mUser <- getBy $ UniqueUserName username
     case mUser of
@@ -29,3 +29,18 @@ getUser username = do
             userId <- insert user
             return $! Entity userId user
 
+-- Images ----------------------------------------------------------------------
+
+-- | Inserts the image and its tags to the database.
+addImage :: MonadIO m => UserId -> IndexedImage -> SqlPersistT m (Entity Image)
+addImage userId IndexedImage {..} = do
+    let img = Image iiCode userId iiName iiHist
+    imgId <- insert img
+
+    insertMany_ [ ImageTag imgId (tagPath tag) | tag <- S.toList iiTags ]
+
+    return $! Entity imgId img
+
+removeImage :: MonadIO m => UserId -> IndexedImage -> SqlPersistT m ()
+removeImage userId IndexedImage {..} =
+    deleteCascadeWhere [ ImageCode ==. iiCode, ImageOwner ==. userId ]

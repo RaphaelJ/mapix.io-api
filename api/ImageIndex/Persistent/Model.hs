@@ -9,8 +9,8 @@ import Histogram ()
 import ImageIndex.Instance ()
 import ImageIndex.Type (IndexedHistogram, ImageCode, TagPath, UserName)
 
-share [ mkPersist sqlOnlySettings
-      , mkDeleteCascade sqlOnlySettings
+share [ mkPersist sqlSettings
+      , mkDeleteCascade sqlSettings
       , mkMigrate "migrateIndex"] [persistLowerCase|
 User
     name                        UserName
