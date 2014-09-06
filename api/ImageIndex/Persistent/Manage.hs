@@ -1,6 +1,7 @@
 module ImageIndex.Persistent.Manage (
       getUser
     , addImage, removeImage
+    , removeTag
     ) where
 
 import Prelude
@@ -11,7 +12,7 @@ import qualified Data.Set as S
 import Database.Persist.Sql
 
 import ImageIndex.Persistent.Model
-import ImageIndex.Type (IndexedImage (..), UserName)
+import ImageIndex.Type (IndexedImage (..), TagPath, UserName)
 import ImageIndex.Tag (tagPath)
 
 -- Users -----------------------------------------------------------------------
@@ -37,10 +38,17 @@ addImage userId IndexedImage {..} = do
     let img = Image iiCode userId iiName iiHist
     imgId <- insert img
 
-    insertMany_ [ ImageTag imgId (tagPath tag) | tag <- S.toList iiTags ]
+    insertMany_ [ ImageTag userId imgId (tagPath tag) | tag <- S.toList iiTags ]
 
     return $! Entity imgId img
 
 removeImage :: MonadIO m => UserId -> IndexedImage -> SqlPersistT m ()
 removeImage userId IndexedImage {..} =
     deleteCascadeWhere [ ImageCode ==. iiCode, ImageOwner ==. userId ]
+
+-- Tags ------------------------------------------------------------------------
+
+-- | Removes the tag without removing its associated images.
+removeTag :: MonadIO m => UserId -> TagPath -> SqlPersistT m ()
+removeTag userId path =
+    deleteWhere [ ImageTagOwner ==. userId, ImageTagTag ==. path ]

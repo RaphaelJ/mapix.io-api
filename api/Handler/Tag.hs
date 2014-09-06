@@ -3,6 +3,7 @@ module Handler.Tag (getTagsR, getTagR, deleteTagR) where
 import Import
 
 import Control.Concurrent.STM (readTVar)
+import Control.Monad
 import Network.HTTP.Types.Status (noContent204)
 
 import Handler.Internal.Mashape (getMashapeHeaders, mhUser)
@@ -13,6 +14,7 @@ import ImageIndex (
     , getUserIndex, liftSTM, lookupTag, removeTag, runTransaction
     , uiRootTag
     )
+import qualified ImageIndex.Persistent as DB
 
 -- Handlers --------------------------------------------------------------------
 
@@ -51,11 +53,18 @@ deleteTagR path = do
     username    <- mhUser <$> getMashapeHeaders
     ii          <- imageIndex <$> getYesod
 
-    exists <- runTransaction $ do
-        ui <- getUserIndex ii username
-        mTag <- lookupTag ui path
-        case mTag of Nothing  -> return False
-                     Just tag -> removeTag ui tag >> return True
+    exists <- runDB $ do
+        exists <- runTransaction $ do
+            ui <- getUserIndex ii username
+            mTag <- lookupTag ui path
+            case mTag of Nothing  -> return False
+                         Just tag -> removeTag ui tag >> return True
+
+        when exists $ do
+            Entity userId _ <- DB.getUser username
+            DB.removeTag userId path
+
+        return exists
 
     if exists then sendResponseStatus noContent204 ()
               else notFound

@@ -28,9 +28,10 @@ Image
     deriving Show
 
 ImageTag
+    owner                       UserId
     image                       ImageId
     tag                         TagPath
 
-    UniqueImageTagImageTag      image tag
+    UniqueImageTagOwnerImageTag owner tag image
     deriving Show
 |]

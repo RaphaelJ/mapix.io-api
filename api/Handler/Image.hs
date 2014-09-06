@@ -95,11 +95,11 @@ postImagesR = do
         -- If the in-memory transaction succeed, saves the image in the
         -- persistent database.
         case mImg of
-             Just img -> do
-                 Entity userId _ <- DB.getUser username
-                 _ <- DB.addImage userId img
-                 return $ Just img
-             Nothing  -> return Nothing
+            Just img -> do
+                Entity userId _ <- DB.getUser username
+                _ <- DB.addImage userId img
+                return $ Just img
+            Nothing  -> return Nothing
 
     case mImg of
         Just img -> do
