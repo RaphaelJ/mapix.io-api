@@ -38,7 +38,9 @@ addImage userId IndexedImage {..} = do
     let img = Image iiCode userId iiName iiHist
     imgId <- insert img
 
-    insertMany_ [ ImageTag userId imgId (tagPath tag) | tag <- S.toList iiTags ]
+    when (not $ S.null iiTags) $ do
+        insertMany_ [ ImageTag userId imgId (tagPath tag)
+                    | tag <- S.toList iiTags ]
 
     return $! Entity imgId img
 
