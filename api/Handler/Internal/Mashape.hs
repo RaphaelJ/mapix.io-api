@@ -33,19 +33,20 @@ getMashapeHeaders =
     lookupSubscription = do
             header <- lookupHeader' "X-Mashape-Subscription"
             case header of
-                "FREE"    -> return MashapeFree
-                "BASIC"   -> return MashapeBasic
-                "PREMIUM" -> return MashapePremium
-                "ULTRA"   -> return MashapeUltra
-                "CUSTOM"  -> return MashapeCustom
-                _         -> error "Invalid mashape plan."
+                "FREE"    -> return $! Just MashapeFree
+                "BASIC"   -> return $! Just MashapeBasic
+                "PREMIUM" -> return $! Just MashapePremium
+                "ULTRA"   -> return $! Just MashapeUltra
+                "CUSTOM"  -> return $! Just MashapeCustom
+                _         -> return Nothing
 
 maxIndexSize :: MashapeSubscription -> Maybe Int
-maxIndexSize MashapeFree    = Just 500
-maxIndexSize MashapeBasic   = Just 10000
-maxIndexSize MashapePremium = Just 100000
-maxIndexSize MashapeUltra   = Just 500000
-maxIndexSize MashapeCustom  = Nothing
+maxIndexSize (Just MashapeFree)    = Just 500
+maxIndexSize (Just MashapeBasic)   = Just 10000
+maxIndexSize (Just MashapePremium) = Just 100000
+maxIndexSize (Just MashapeUltra)   = Just 500000
+maxIndexSize (Just MashapeCustom)  = Nothing
+maxIndexSize Nothing               = Nothing
 
 -- | Sets the X-Mashape-Billing header to the given list of values.
 setBilling :: [(Text, Int)] -> Handler ()
