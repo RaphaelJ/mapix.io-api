@@ -6,6 +6,7 @@ module ImageIndex.Persistent.Manage (
 
 import Prelude
 
+import Control.Monad
 import Control.Monad.IO.Class
 import Database.Persist
 import qualified Data.Set as S
