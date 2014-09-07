@@ -15,14 +15,14 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Default (def)
 import qualified Database.Persist
 import Database.Persist.Sql (runMigration)
-import Network.HTTP.Conduit (newManager, conduitManagerSettings)
+import Network.HTTP.Client.Conduit (newManager)
 import Network.Wai.Logger (clockDateCacher)
 import Network.Wai.Middleware.RequestLogger (
       mkRequestLogger, outputFormat, OutputFormat (..), IPAddrSource (..)
     , destination
     )
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
-import System.Log.FastLogger (newLoggerSet, defaultBufSize)
+import System.Log.FastLogger (newStdoutLoggerSet, defaultBufSize)
 import System.FilePath ((</>))
 import System.Directory (doesFileExist)
 import Web.ClientSession (defaultKeyFile, randomKey)
@@ -66,13 +66,13 @@ makeApplication conf = do
 -- performs some initialization.
 makeFoundation :: AppConfig DefaultEnv Extra -> IO App
 makeFoundation conf = do
-    manager <- newManager conduitManagerSettings
+    manager <- newManager
     dbconf <- withYamlEnvironment "config/sqlite.yml" (appEnv conf)
               Database.Persist.loadConfig >>=
               Database.Persist.applyEnv
     p <- Database.Persist.createPoolConfig (dbconf :: Settings.PersistConf)
 
-    loggerSet' <- newLoggerSet defaultBufSize Nothing
+    loggerSet' <- newStdoutLoggerSet defaultBufSize
     (getter, _) <- clockDateCacher
 
     key <- getEncryptionKey

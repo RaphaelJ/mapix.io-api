@@ -17,7 +17,7 @@ data MashapeSubscription = MashapeFree  | MashapeBasic | MashapePremium
 data MashapeHeaders = MashapeHeaders {
       mhProxySecret  :: Text -- ^ Secret key from the Mashape proxy.
     , mhUser         :: Text -- ^ Username of the client.
-    , mhSubscription :: MashapeSubscription
+    , mhSubscription :: Maybe MashapeSubscription
     , mhForwardedFor :: Text -- ^ Host/Ip of the client.
     } deriving Show
 
@@ -40,7 +40,7 @@ getMashapeHeaders =
                 "CUSTOM"  -> return $! Just MashapeCustom
                 _         -> return Nothing
 
-maxIndexSize :: MashapeSubscription -> Maybe Int
+maxIndexSize :: Maybe MashapeSubscription -> Maybe Int
 maxIndexSize (Just MashapeFree)    = Just 500
 maxIndexSize (Just MashapeBasic)   = Just 10000
 maxIndexSize (Just MashapePremium) = Just 100000
