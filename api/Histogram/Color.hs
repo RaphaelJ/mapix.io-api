@@ -102,8 +102,8 @@ toColorHistPixel !pix
 -- histogram.
 toGreyHistPixel :: HSVPixel -> Maybe GreyHistPixel
 toGreyHistPixel !pix@(HSVPixel {..})
-    | isGreyscale pix = Nothing
-    | otherwise       = Just $! GreyHistPixel hsvValue
+    | isGreyscale pix = Just $! GreyHistPixel hsvValue
+    | otherwise       = Nothing
 {-# INLINE toGreyHistPixel #-}
 
 -- -----------------------------------------------------------------------------

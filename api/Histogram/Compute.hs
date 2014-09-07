@@ -1,7 +1,7 @@
 -- | Functions to create an histogram from an image or a list of colors.
 module Histogram.Compute (
       Mask
-    , fromImages, fromColors
+    , fromImages, fromImage, fromColors
     , average, normalize, alphaMask, backgroundMask
     ) where
 
@@ -49,7 +49,7 @@ fromImages !ignoreBack !ignoreSkin =   average
 {-# SPECIALIZE fromImages :: Bool -> Bool -> [StorageImage]
                           -> HeterogeneousHistogram Float #-}
 
--- | Builds an histogram from an image. 
+-- | Builds an histogram from an image.
 fromImage :: (Storable a, Real a, Fractional a)
           => Bool -> Bool -> StorageImage -> HeterogeneousHistogram a
 fromImage !ignoreBack !ignoreSkin !io =
@@ -109,7 +109,6 @@ fromImage !ignoreBack !ignoreSkin !io =
                                   (H.histogram (Just greysHistSize)  greys)
 
     -- Does an && between two masks boolean pixels.
---     andMasks :: Mask -> Mask -> Mask
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
 {-# SPECIALIZE fromImage :: Bool -> Bool -> StorageImage
@@ -172,8 +171,11 @@ normalize HeterogeneousHistogram {..} =
     let !sumColors = histSum hhColors
         !sumGreys  = histSum hhGreys
         !total     = sumColors + sumGreys
-    in HeterogeneousHistogram (H.normalize (sumColors / total) $ hhColors)
-                              (H.normalize (sumGreys  / total) $ hhGreys)
+        !colors | sumColors > 0 = H.normalize (sumColors / total) hhColors
+                | otherwise     = hhColors
+        !greys  | sumGreys  > 0 = H.normalize (sumGreys / total)  hhGreys
+                | otherwise     = hhGreys
+    in HeterogeneousHistogram colors greys
   where
     histSum = V.sum . H.vector
 {-# SPECIALIZE normalize :: HeterogeneousHistogram Float
