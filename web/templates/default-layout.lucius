@@ -9,9 +9,6 @@ body, h1, h2, h3, h4, .navbar {
 
 .navbar {
     background-color: #AA2163;
-    border: none;
-
-    font-size: 1.1em;
 
     a {
         color: white;
@@ -19,11 +16,6 @@ body, h1, h2, h3, h4, .navbar {
 
     .icon-bar {
         border: 1px solid white;
-    }
-
-    .navbar-brand {
-        font-size: 20px;
-        font-weight: 700;
     }
 
     .nav li {

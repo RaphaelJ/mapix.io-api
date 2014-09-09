@@ -6,6 +6,7 @@
 module Settings where
 
 import Prelude
+
 import Text.Shakespeare.Text (st)
 import Language.Haskell.TH.Syntax
 import Database.Persist.Sqlite (SqliteConf)
@@ -13,7 +14,6 @@ import Yesod.Default.Config
 import Yesod.Default.Util
 import Data.Text (Text)
 import Data.Yaml
-import Control.Applicative
 import Settings.Development
 import Data.Default (def)
 import Text.Hamlet
@@ -66,11 +66,8 @@ widgetFile = (if development then widgetFileReload
               widgetFileSettings
 
 data Extra = Extra
-    { extraCopyright :: Text
-    , extraAnalytics :: Maybe Text -- ^ Google Analytics
+    {
     } deriving Show
 
 parseExtra :: DefaultEnv -> Object -> Parser Extra
-parseExtra _ o = Extra
-    <$> o .:  "copyright"
-    <*> o .:? "analytics"
+parseExtra _ _o = return Extra
