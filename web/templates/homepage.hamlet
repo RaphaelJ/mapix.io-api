@@ -16,10 +16,14 @@
                 We provide a simple REST API which uses JSON in responses to
                 your queries.
 
-        <div .col-md-4>
+        <div .col-md-4 .text-center>
+            <img src=@{StaticR img_icons_tags_svg} alt="Tags Icon"
+                 .icon>
 
     <div .row>
-        <div .col-md-4>
+        <div .col-md-4 .text-center>
+            <img src=@{StaticR img_icons_mashape_svg} alt="Mashape Icon"
+                 .icon>
 
         <div .col-md-8 .text-right>
             <h1>Matches your needs

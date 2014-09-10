@@ -123,7 +123,7 @@ executable         mapix-api
                      , mapix-api
                      , yesod
 
-    ghc-options:       -threaded -O2
+    ghc-options:       -Wall -O2 -rtsopts -threaded -with-rtsopts=-N
 
 Flag train
     Description:   Compiles the executable used to calibrate the algorithm.

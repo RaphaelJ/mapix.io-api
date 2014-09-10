@@ -13,12 +13,11 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import System.Environment (getArgs)
 import System.FilePath ((</>), (<.>), takeExtension)
-import System.IO (hPrint, stderr)
 import System.IO.Unsafe (unsafeInterleaveIO)
 import System.Random
 import Text.Printf
 
-import Control.Monad.Logger (runNoLoggingT)
+import Control.Monad.Logger (runStderrLoggingT)
 
 import Database.Persist (
       entityKey, entityVal, insert_, insertBy, insertUnique, selectList
@@ -29,9 +28,9 @@ import Database.Persist.Sqlite (runSqlConn, withSqliteConn)
 import qualified Flickr.API as F
 import qualified Flickr.Photos as F
 
-import Control.Monad.Trans.Resource (mkResource, runResourceT, with)
+import Control.Monad.Trans.Resource (allocate, release, runResourceT)
 import Network.HTTP.Conduit (
-      HttpException, Request, closeManager, conduitManagerSettings, httpLbs
+      Request, closeManager, conduitManagerSettings, httpLbs
     , managerResponseTimeout, newManager, parseUrl, responseBody
     )
 
@@ -53,18 +52,24 @@ data Photo = Photo {
 pageSize :: Int
 pageSize = 10
 
+-- | Fetches public images using the Flickr API.
+--
+-- usage: flickr-crawler <dict file> <sqlite db> <dest dir>
+-- where <dict file> if a file containing keywords to search, <sqlite db> the
+-- SQLite database where meta-data will be stored and <dest dir> the directory
+-- where images will be stored.
 main :: IO ()
 main = do
     args <- getArgs
     case args of
-        [dictFile, sqliteFile, dstDir] -> do
-            dict <- lines <$> readFile dictFile
+        [dictFile, sqliteFile, dstDir] -> runResourceT $ do
+            dict <- lines <$> liftIO (readFile dictFile)
 
-            withHttpSql $ \http conn -> do
+            withHttpSql sqliteFile $ \http -> do
+                runMigration migrateFlickr
+
                 -- Retrieve already fetched images from the database.
-                skipPics <- runSqlConn' conn $ do
-                    runMigration migrateAll
-                    selectList [] []
+                skipPics <- selectList [] []
 
                 let skipIds = map (T.unpack . flickrImagePhotoId . entityVal)
                                   skipPics
@@ -72,34 +77,41 @@ main = do
                 pics <- liftIO $ photos (mkStdGen 0) dict skipIds
 
                 forM_ (zip [(length skipIds + 1)..] pics) $ \(i, pic) -> do
-                    mKey <- addPhoto http conn dstDir pic
+                    mKey <- addPhoto http dstDir pic
 
                     case mKey of
                         Just key ->
                             liftIO $ printf "%d\t%s\t(key : %s)\n" i
                                             (T.unpack (pUrl pic)) (show key)
                         Nothing  -> return ()
-        _            ->
-            putStrLn "Usage: loader-flickr <dict file> <sqlite db> <dest dir>"
+        _            -> do
+            putStrLn "usage: loader-flickr <dict file> <sqlite db> <dest dir>"
+            putStrLn "where <dict file> if a file containing keywords to \
+                     \search, <sqlite db> the SQLite database where meta-data \
+                     \will be stored and <dest dir> the directory where images \
+                     \will be stored."
   where
     -- Runs the given action with an HTTP manager and a SQLite connection.
     withHttpSql sqliteFile action = do
-
         let httpSetts = conduitManagerSettings {
                 managerResponseTimeout = Just 30000000
             }
-            httpMan   = mkResource (newManager httpSetts) closeManager
 
-        with httpMan $ \http ->
-            withSqliteConn (T.pack sqliteFile) $ \conn ->
-                action http conn
+        (httpKey, http) <- allocate (newManager httpSetts) closeManager
 
-    addPhoto http conn dstDir Photo { .. } = E.handle onException $ do
+        ret <- runStderrLoggingT $ withSqliteConn (T.pack sqliteFile) $ \conn ->
+            runSqlConn (action http) conn
+
+        release httpKey
+
+        return ret
+
+    addPhoto http dstDir Photo { .. } = do
         let path = dstDir </> T.unpack pId <.> pImageExt
 
         bs <- httpLbs pImageReq http
 
-        runSqlConn' conn $ runMaybeT $ do
+        runMaybeT $ do
             key <- MaybeT $ insertUnique $ FlickrImage pId pTitle pUrl pWidth
                                                        pHeight
 
@@ -108,15 +120,10 @@ main = do
             lift $ mapM_ (insertTag key) pTags
 
             return key
-      where
-        onException (e :: HttpException) = hPrint stderr e >> return Nothing
 
     insertTag picKey tag = do
         tagKey <- either entityKey id <$> insertBy (FlickrTag tag)
         insert_ $ FlickrImageTag picKey tagKey
-
-    runSqlConn' conn action =
-        runNoLoggingT $ runResourceT $ runSqlConn action conn
 
 -- | Returns an infinite list of FlickR photos taken from random searches using
 -- the given dictionnary and random generator. Skips images from the given list.
