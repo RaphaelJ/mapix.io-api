@@ -7,12 +7,15 @@ module Settings where
 
 import Prelude
 
+import Control.Applicative
 import Text.Shakespeare.Text (st)
 import Language.Haskell.TH.Syntax
 import Database.Persist.Sqlite (SqliteConf)
 import Yesod.Default.Config
 import Yesod.Default.Util
+import Data.ByteString (ByteString)
 import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml
 import Settings.Development
 import Data.Default (def)
@@ -55,8 +58,8 @@ widgetFile = (if development then widgetFileReload
               widgetFileSettings
 
 data Extra = Extra {
-      eApiRoot :: Text
-    , eApiKey  :: Text
+      eApiRoot :: String
+    , eApiKey  :: ByteString
     } deriving Show
 
 instance HasAPIConfig Extra where
@@ -65,5 +68,5 @@ instance HasAPIConfig Extra where
 
 parseExtra :: DefaultEnv -> Object -> Parser Extra
 parseExtra _ o = Extra
-    <$> o .: "apiroot"
-    <*> o .: "apikey"
+    <$>                 o .: "apiroot"
+    <*> (encodeUtf8 <$> o .: "apikey")

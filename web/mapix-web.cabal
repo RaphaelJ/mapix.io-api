@@ -12,7 +12,8 @@ Flag library-only
     Default:       False
 
 library
-    exposed-modules: Application
+    exposed-modules: API
+                     Application
                      Foundation
                      Import
                      Model
@@ -68,6 +69,14 @@ library
                  , fast-logger                   >= 2.2        && < 2.3
                  , wai-logger                    >= 2.2        && < 2.3
 
+                 , aeson                         >= 0.8        && < 0.9
+                 , http-client-tls               >= 0.2.2      && < 0.3
+                 , lens                          >= 4.4.0.1    && < 5.0
+                 , lens-aeson                    >= 1          && < 2
+                 , mtl                           >= 2.2.1      && < 3
+                 , transformers                  >= 0.4        && < 0.5
+                 , wreq                          >= 0.2        && < 0.3
+
     -- see https://github.com/yesodweb/yesod/issues/814
     if !os(windows)
         build-depends: unix
@@ -108,4 +117,4 @@ executable      flickr-crawler
                  , random-shuffle               >= 0.0.4        && < 0.1
                  , resourcet                    >= 1.1.2.3      && < 2.0
                  , text                         >= 0.11         && < 2.0
-                 , transformers                 >= 0.3          && < 0.4
+                 , transformers                 >= 0.4          && < 0.5

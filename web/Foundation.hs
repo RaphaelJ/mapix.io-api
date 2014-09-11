@@ -13,6 +13,7 @@ import Text.Jasmine (minifym)
 import Text.Hamlet (hamletFile)
 import Yesod.Core.Types (Logger)
 
+import API (HasAPIConfig (..))
 import qualified Settings
 import Settings (widgetFile, Extra (..))
 import Settings.Development (development)
@@ -29,6 +30,10 @@ data App = App
 
 instance HasHttpManager App where
     getHttpManager = httpManager
+
+instance HasAPIConfig App where
+    getApiRoot = getApiRoot . appExtra . settings
+    getApiKey  = getApiKey  . appExtra . settings
 
 mkYesodData "App" $(parseRoutesFile "config/routes")
 

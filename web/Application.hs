@@ -16,7 +16,8 @@ import Network.Wai.Middleware.RequestLogger
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Database.Persist
 import Database.Persist.Sql (runMigration)
-import Network.HTTP.Client.Conduit (newManager)
+import Network.HTTP.Client.Conduit (newManagerSettings)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Control.Monad.Logger (runLoggingT)
 import System.Log.FastLogger (newStdoutLoggerSet, defaultBufSize)
 import Network.Wai.Logger (clockDateCacher)
@@ -51,7 +52,7 @@ makeApplication conf = do
 -- performs some initialization.
 makeFoundation :: AppConfig DefaultEnv Extra -> IO App
 makeFoundation conf = do
-    manager <- newManager
+    manager <- newManagerSettings tlsManagerSettings
     s <- staticSite
     dbconf <- withYamlEnvironment "config/sqlite.yml" (appEnv conf)
               Database.Persist.loadConfig >>=
