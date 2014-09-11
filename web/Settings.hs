@@ -18,6 +18,8 @@ import Settings.Development
 import Data.Default (def)
 import Text.Hamlet
 
+import API (HasAPIConfig (..))
+
 -- | Which Persistent backend this site is using.
 type PersistConf = SqliteConf
 
@@ -28,19 +30,6 @@ type PersistConf = SqliteConf
 staticDir :: FilePath
 staticDir = "static"
 
--- | The base URL for your static files. As you can see by the default
--- value, this can simply be "static" appended to your application root.
--- A powerful optimization can be serving static files from a separate
--- domain name. This allows you to use a web server optimized for static
--- files, more easily set expires and cache values, and avoid possibly
--- costly transference of cookies on static files. For more information,
--- please see:
---   http://code.google.com/speed/page-speed/docs/request.html#ServeFromCookielessDomain
---
--- If you change the resource pattern for StaticR in Foundation.hs, you will
--- have to make a corresponding change here.
---
--- To see how this value is used, see urlRenderOverride in Foundation.hs
 staticRoot :: AppConfig DefaultEnv x -> Text
 staticRoot conf = [st|#{appRoot conf}/static|]
 
@@ -65,9 +54,16 @@ widgetFile = (if development then widgetFileReload
                              else widgetFileNoReload)
               widgetFileSettings
 
-data Extra = Extra
-    {
+data Extra = Extra {
+      eApiRoot :: Text
+    , eApiKey  :: Text
     } deriving Show
 
+instance HasAPIConfig Extra where
+    getApiRoot = eApiRoot
+    getApiKey  = eApiKey
+
 parseExtra :: DefaultEnv -> Object -> Parser Extra
-parseExtra _ _o = return Extra
+parseExtra _ o = Extra
+    <$> o .: "apiroot"
+    <*> o .: "apikey"

@@ -28,4 +28,10 @@ FlickrImageTag
 
     UniqueFlickrImageTag        image tag
     deriving Show
+
+APIImage
+    apiId                       Text
+    flickr                      FlickrImageId
+
+    UniqueAPIImageAPIId         apiId
 |]
