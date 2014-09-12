@@ -3,6 +3,7 @@
 module API (
       ApiImageCode (..), Tag, HasAPIConfig (..)
     , postImage
+    , getResourceUrl, getOptions
     ) where
 
 import Prelude
