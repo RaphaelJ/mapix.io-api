@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module API (
-      ApiImageCode (..), Tag, HasAPIConfig (..)
+      APIImageCode (..), Tag, HasAPIConfig (..)
     , postImage
-    , getResourceUrl, getOptions
+    , getResourceUrl, getOptions, withMashapeKey
     ) where
 
 import Prelude
@@ -24,10 +24,10 @@ import Network.Wreq (
     , defaults, header, manager, partLBS, partFileSource, postWith, responseBody
     )
 
-newtype ApiImageCode = ApiImageCode { aicValue :: Text }
+newtype APIImageCode = APIImageCode { aicValue :: Text }
     deriving (Eq, Ord, Read, PersistField)
 
-instance PersistFieldSql ApiImageCode where
+instance PersistFieldSql APIImageCode where
     sqlType action = sqlType (aicValue `liftM` action)
 
 type Tag = Text
@@ -38,7 +38,7 @@ class HasAPIConfig a where
 
 postImage :: ( MonadReader env m, HasHttpManager env, HasAPIConfig env
              , MonadIO m)
-          => FilePath -> [Tag] -> m (Maybe ApiImageCode)
+          => FilePath -> [Tag] -> m (Maybe APIImageCode)
 postImage path tags = do
     options <- getOptions
     url     <- getResourceUrl "/images"
@@ -47,7 +47,7 @@ postImage path tags = do
                                           , partLBS "tags"  (encode tags) ]
 
     return $ case resp ^? responseBody . key "id" of
-        Just (String code) -> Just $ ApiImageCode code
+        Just (String code) -> Just $ APIImageCode code
         _                  -> Nothing
 
 -- -----------------------------------------------------------------------------
@@ -55,6 +55,8 @@ postImage path tags = do
 getResourceUrl :: (MonadReader env m, HasAPIConfig env) => String -> m String
 getResourceUrl rsrc = ((++ rsrc) . getApiRoot) `liftM` ask
 
+-- | Creates an 'Options' object from the monad HTTP 'Manager' which can be used
+-- to query the API.
 getOptions :: ( MonadReader env m, HasHttpManager env, HasAPIConfig env
               , MonadIO m)
            => m Options
@@ -62,8 +64,17 @@ getOptions = do
     env <- ask
 
     let httpMan = getHttpManager env
-        apiKey  = getApiKey      env
-        options = defaults & manager                .~ Right httpMan
-                           & header "X-Mashape-Key" .~ [apiKey]
+        options = defaults & manager .~ Right httpMan
 
-    return options
+    withMashapeKey options
+
+-- | Adds the X-Mashape-Key header with the Monad's API key to every request
+-- which will be made with the returned 'Options' object.
+withMashapeKey :: (HasAPIConfig env, MonadReader env m) => Options -> m Options
+withMashapeKey options = do
+    env <- ask
+
+    let apiKey   = getApiKey env
+        options' = options & header "X-Mashape-Key" .~ [apiKey]
+
+    return options'

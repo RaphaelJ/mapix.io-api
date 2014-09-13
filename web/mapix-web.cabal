@@ -117,7 +117,7 @@ executable      flickr-crawler
                  , random-shuffle               >= 0.0.4        && < 0.1
                  , text                         >= 0.11         && < 2.0
                  , transformers                 >= 0.4          && < 0.5
-                 , wreq                          >= 0.2        && < 0.3
+                 , wreq                         >= 0.2          && < 0.3
 
 executable      flickr-push-to-api
     main-is:            FlickrPushToAPI.hs
@@ -125,13 +125,19 @@ executable      flickr-push-to-api
     ghc-options:        -Wall -O2 -rtsopts -threaded
 
     build-depends: base                         >= 4            && < 5
+                 , bytestring                   >= 0.10.0.2     && < 1
+                 , containers                   >= 0.5          && < 1
+                 , directory                    >= 1.2          && < 2
+                 , filepath                     >= 1.3          && < 2
                  , http-client                  >= 0.4          && < 0.5
                  , http-client-tls              >= 0.2.2        && < 0.3
+                 , http-conduit                 >= 2.1          && < 2.2
                  , lens                         >= 4.4.0.1      && < 5.0
                  , mapix-web
                  , monad-logger                 >= 0.3.3.1      && < 0.4
+                 , mtl                          >= 2.2.1        && < 3
                  , persistent                   >= 2.0.2        && < 3.0
                  , persistent-sqlite            >= 2.0.0.1      && < 3.0
                  , text                         >= 0.11         && < 2.0
                  , transformers                 >= 0.4          && < 0.5
-                 , wreq                          >= 0.2        && < 0.3
+                 , wreq                         >= 0.2          && < 0.3

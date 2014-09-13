@@ -38,7 +38,7 @@ errorName (InternalServerError _) = "INTERNAL-SERVER-ERROR"
 errorMessage :: APIError -> Maybe Text
 errorMessage (BadRequest msgs) =
     let msgsTxt = T.intercalate ", " msgs
-    in Just $ "The you submitted an incorrect request: " <> msgsTxt
+    in Just $ "You submitted an incorrect request: " <> msgsTxt
 errorMessage NotFound =
     Just "The resource you are looking for doesn't exist"
 errorMessage (MethodNotAllowed method) =
