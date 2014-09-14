@@ -2,6 +2,7 @@
 module Histogram.Compute (
       Mask
     , fromImages, fromImage, fromColors
+    , resize
     , average, normalize, alphaMask, backgroundMask
     ) where
 
@@ -41,6 +42,7 @@ import Histogram.Type (HeterogeneousHistogram (..))
 type Mask = Manifest Bool
 
 -- | Builds an histogram from a list of images.
+--
 -- Returns a normalized histogram.
 fromImages :: (Storable a, Real a, Fractional a)
            => Bool -> Bool -> [StorageImage] -> HeterogeneousHistogram a
@@ -53,16 +55,7 @@ fromImages !ignoreBack !ignoreSkin =   average
 fromImage :: (Storable a, Real a, Fractional a)
           => Bool -> Bool -> StorageImage -> HeterogeneousHistogram a
 fromImage !ignoreBack !ignoreSkin !io =
-    let -- Resizes the original image if larger than the maximum image size.
-        !io' | h <= confMaxImageSize && w <= confMaxImageSize = io
-             | otherwise                                      =
-                let !ratio   = max h w % confMaxImageSize
-                    !newSize = ix2 (round $ fromIntegral h / ratio)
-                                   (round $ fromIntegral w / ratio)
-                in case io of
-                        GreyStorage img -> GreyStorage $! resize' newSize img
-                        RGBAStorage img -> RGBAStorage $! resize' newSize img
-                        RGBStorage  img -> RGBStorage  $! resize' newSize img
+    let !io' = resize io
 
         hsv :: HSV
         !hsv = I.convert (I.convert io' :: RGB)
@@ -85,16 +78,6 @@ fromImage !ignoreBack !ignoreSkin !io =
                                                  else Nothing
             in toHist maskedHsv
   where
-    !(Z :. h :. w) = case io of GreyStorage img -> I.shape img
-                                RGBAStorage img -> I.shape img
-                                RGBStorage  img -> I.shape img
-
-    resize' :: (Interpolable (ImagePixel i), Image i, FromFunction i
-              , FromFunctionPixel i ~ ImagePixel i
-              , Integral (ImageChannel i))
-            => Size -> i -> i
-    resize' size img = I.resize I.Bilinear size img
-    {-# INLINE resize' #-}
 
     toHist img =
         let colors :: DelayedMask ColorHistPixel
@@ -137,6 +120,31 @@ fromColors xs =
             toHistLinearIndex = toLinearIndex histSize
         in Histogram histSize vec
 {-# SPECIALIZE fromColors :: [Color Float] -> HeterogeneousHistogram Float #-}
+
+-- -----------------------------------------------------------------------------
+
+-- | Resizes the original image if larger than the maximum image size.
+resize :: StorageImage -> StorageImage
+resize io | h <= confMaxImageSize && w <= confMaxImageSize = io
+          | otherwise                                      =
+                let !ratio   = max h w % confMaxImageSize
+                    !newSize = ix2 (round $ fromIntegral h / ratio)
+                                   (round $ fromIntegral w / ratio)
+                in case io of
+                        GreyStorage img -> GreyStorage $! resize' newSize img
+                        RGBAStorage img -> RGBAStorage $! resize' newSize img
+                        RGBStorage  img -> RGBStorage  $! resize' newSize img
+  where
+    !(Z :. h :. w) = case io of GreyStorage img -> I.shape img
+                                RGBAStorage img -> I.shape img
+                                RGBStorage  img -> I.shape img
+
+    resize' :: (Interpolable (ImagePixel i), Image i, FromFunction i
+              , FromFunctionPixel i ~ ImagePixel i
+              , Integral (ImageChannel i))
+            => Size -> i -> i
+    resize' size img = I.resize I.Bilinear size img
+    {-# INLINE resize' #-}
 
 -- -----------------------------------------------------------------------------
 
