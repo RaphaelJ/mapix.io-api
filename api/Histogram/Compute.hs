@@ -8,8 +8,10 @@ module Histogram.Compute (
 
 import Prelude
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.ST
+import Control.Parallel.Strategies
 import Data.Either
 import Data.Function
 import Data.List
@@ -88,8 +90,12 @@ fromImage !ignoreBack !ignoreSkin !io =
             greys  = I.fromFunction (I.shape img) $   (>>= toGreyHistPixel)
                                                     . (img `I.maskedIndex`)
 
-        in HeterogeneousHistogram (H.histogram (Just colorsHistSize) colors)
-                                  (H.histogram (Just greysHistSize)  greys)
+            colorsHist = H.histogram (Just colorsHistSize) colors
+            greysHist  = H.histogram (Just greysHistSize)  greys
+
+        in runEval $ HeterogeneousHistogram <$> rpar colorsHist
+                                            <*> rseq greysHist
+    {-# INLINE toHist #-}
 
     -- Does an && between two masks boolean pixels.
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
@@ -143,7 +149,7 @@ resize io | h <= confMaxImageSize && w <= confMaxImageSize = io
               , FromFunctionPixel i ~ ImagePixel i
               , Integral (ImageChannel i))
             => Size -> i -> i
-    resize' size img = I.resize I.Bilinear size img
+    resize' size img = I.resize I.NearestNeighbor size img
     {-# INLINE resize' #-}
 
 -- -----------------------------------------------------------------------------

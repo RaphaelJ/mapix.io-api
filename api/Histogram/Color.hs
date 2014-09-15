@@ -110,8 +110,7 @@ toGreyHistPixel !pix@(HSVPixel {..})
 
 -- | Returns the primary RGB colors of the histogram, sorted by their decreasing
 -- weight. Ignores colors which weight less than the given value.
-toColors :: (Ord a, Storable a) => HeterogeneousHistogram a -> a
-             -> [Color a]
+toColors :: (Ord a, Storable a) => HeterogeneousHistogram a -> a -> [Color a]
 toColors HeterogeneousHistogram {..} !minVal =
     sortBy (flip compare `on` cWeight) colors
   where
@@ -221,7 +220,7 @@ remapIxs (srcFrom, srcTo) (dstFrom, dstTo) =
     !vec   = V.generate nSrc remap
 
     remap ix = round $! ((ratio ix + 0.5) * scale) - 0.5
--- {-# INLINE remapIxs #-}
+{-# NOINLINE remapIxs #-} -- GHC stack overflows when inlining this function.
 
 -- Constants -------------------------------------------------------------------
 

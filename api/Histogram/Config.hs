@@ -25,4 +25,4 @@ confHistNVal = 4
 
 -- | Maximum size of a side of an image.
 confMaxImageSize :: Int
-confMaxImageSize = 480
+confMaxImageSize = 350
