@@ -51,9 +51,9 @@ countField :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
 countField =
     let msgMax = T.pack $!    "The value can't be higher than "
                            ++ show confMaxCount
-        msgMin = "The value must be strictly positive" :: Text
+        msgMin = "The value must positive or zero" :: Text
     in checkBool (<= confMaxCount) msgMax $
-       checkBool (> 0)             msgMin intField
+       checkBool (>= 0)            msgMin intField
 
 positiveField :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
               => Field m Int

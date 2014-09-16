@@ -1,6 +1,6 @@
 module Histogram.Config (
       confHistColorMinSat, confHistColorMinVal, confHistNSat, confHistNVal
-    , confMaxImageSize
+    , confMaxImageSize, confPerfectFitBinWeight
     ) where
 
 import Prelude
@@ -26,3 +26,8 @@ confHistNVal = 4
 -- | Maximum size of a side of an image.
 confMaxImageSize :: Int
 confMaxImageSize = 350
+
+-- | The weight of the standard comparison of two histograms as compared to the
+-- neighborhood comparison.
+confPerfectFitBinWeight :: Fractional a => a
+confPerfectFitBinWeight = 0.8

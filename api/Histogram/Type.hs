@@ -13,8 +13,7 @@ type GreyIX = DIM1
 data HeterogeneousHistogram a = HeterogeneousHistogram {
       hhColors :: !(Histogram ColorIX a)
     , hhGreys  :: !(Histogram GreyIX  a)
-    }
-    deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show)
 
 -- | Histogram on which some bins are undefined.
 --
@@ -27,5 +26,4 @@ data PartialHistogram a = PartialHistogram {
     , phGreysValues  :: !(Vector a)
     -- | @phSumValues == sum phColorsValues + sum phGreysValues@s 
     , phSumValues    :: !a
-    }
-    deriving (Show)
+    } deriving (Show)

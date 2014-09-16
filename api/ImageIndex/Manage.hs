@@ -44,9 +44,9 @@ import System.Random (RandomGen, random)
 
 import ImageIndex.Type
 
-newIndex :: IO ImageIndex
-newIndex = ImageIndex <$> newTVarIO M.empty <*> newTVarIO Nothing
-                      <*> newTVarIO Nothing
+newIndex :: MonadIO m => m ImageIndex
+newIndex = liftIO $ ImageIndex <$> newTVarIO M.empty <*> newTVarIO Nothing
+                               <*> newTVarIO Nothing
 
 -- Index transactions ----------------------------------------------------------
 
