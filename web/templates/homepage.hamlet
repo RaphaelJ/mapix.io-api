@@ -6,7 +6,7 @@
                 Use our API to index and search for similar images in a
                 collection of up to a million images in fractions of seconds.
 
-    <div .colors-bar>
+    <ul #colors-bar>
 
 <div .container>
     <div .row>

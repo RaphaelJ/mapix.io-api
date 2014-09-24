@@ -59,9 +59,9 @@ instance Yesod App where
                 ])
 
             $(combineScripts 'StaticR
-                [ js_bootstrap_min_js
-                , js_html5shiv_js
+                [ js_html5shiv_js
                 , js_jquery_min_js
+                , js_bootstrap_min_js
                 , js_respond_min_js
                 ])
 
