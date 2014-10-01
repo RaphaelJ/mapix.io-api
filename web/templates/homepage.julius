@@ -32,7 +32,6 @@ $(document).ready(function ()
 
     for (var color in colors) {
         var elem = $("<li>").css("background-color", '#' + color);
-        alert("background-color", '#' + color);
 
         colors_bar.append(elem);
     }

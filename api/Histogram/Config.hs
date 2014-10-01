@@ -1,6 +1,6 @@
 module Histogram.Config (
       confHistColorMinSat, confHistColorMinVal, confHistNSat, confHistNVal
-    , confMaxImageSize, confPerfectFitBinWeight
+    , confMaxImageSize, confCrossBinWeight
     ) where
 
 import Prelude
@@ -27,7 +27,7 @@ confHistNVal = 4
 confMaxImageSize :: Int
 confMaxImageSize = 350
 
--- | The weight of the standard comparison of two histograms as compared to the
--- neighborhood comparison.
-confPerfectFitBinWeight :: Fractional a => a
-confPerfectFitBinWeight = 0.8
+-- | The weight of a matching cross-bin comparison with a direct-neighbor as
+-- compared to a direct-bin comparison (which has a weight of 1).
+confCrossBinWeight :: Fractional a => a
+confCrossBinWeight = 0.30
