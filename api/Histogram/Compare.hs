@@ -14,12 +14,28 @@ import Vision.Primitive (Z, (:.), DIM1, DIM3, ix1, shapeLength)
 import Histogram.Config (confCrossBinWeight)
 import Histogram.Type (HeterogeneousHistogram (..), PartialHistogram (..))
 
+-- | Computes the intersection of two histograms.
+--
+-- Returns 'Nothing' if it can ensure that the intersection will be smaller than
+-- the given minimum score.
 compareHeterogeneous :: (Ord a, Num a, Storable a)
-            => HeterogeneousHistogram a -> HeterogeneousHistogram a -> a
-compareHeterogeneous hist1 hist2 =
-      (compareIntersect `on` hhColors) hist1 hist2
-    + (compareIntersect `on` hhGreys)  hist1 hist2
-{-# SPECIALIZE compareHeterogeneous :: HeterogeneousHistogram Float
+                     => a -> HeterogeneousHistogram a
+                     -> HeterogeneousHistogram a -> Maybe a
+compareHeterogeneous minScore hist1 hist2 = do
+    let intersecOn         = compareIntersect . on
+        !intersecGrey      = intersecOn hhGreys hist1 hist2 * directBinWeight
+        !maxIntersecColors =    (min `on` hhColorsSum) hist1 hist2
+                              * directBinWeight
+
+    guard $! intersecGrey + maxIntersecColors + confCrossBinWeight >= 1.0
+
+    let !intersecColors = compareOn hhColors hist1 hist2 * directBinWeight
+
+    guard $! intersecGrey + intersecColors    + confCrossBinWeight >= 1.0
+
+    return $!   intersecGrey + intersecColors
+              + compareCrossBinHist1D + compareCrossBinHist3D
+{-# SPECIALIZE compareHeterogeneous :: Float -> HeterogeneousHistogram Float
                                     -> HeterogeneousHistogram Float -> Float #-}
 
 comparePartial :: (Storable a, Ord a, Fractional a)
@@ -109,6 +125,9 @@ compareHist3D hist1@(Histogram sh1 vec1) hist2@(Histogram sh2 vec2)
                              -> Float #-}
 
 -- -----------------------------------------------------------------------------
+
+directBinWeight :: Fractional a => a
+directBinWeight = 1 - confCrossBinWeight
 
 -- The weight of cross-bin comparisons as compared to a direct bin comparison
 -- (1.0).

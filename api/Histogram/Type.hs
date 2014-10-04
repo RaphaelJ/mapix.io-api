@@ -11,8 +11,9 @@ type ColorIX = DIM3
 type GreyIX = DIM1
 
 data HeterogeneousHistogram a = HeterogeneousHistogram {
-      hhColors :: !(Histogram ColorIX a)
-    , hhGreys  :: !(Histogram GreyIX  a)
+      hhColors    :: !(Histogram ColorIX a)
+    , hhGreys     :: !(Histogram GreyIX  a)
+    , hhColorsSum :: !a                      -- ^ @== sum hhColors@.
     } deriving (Eq, Ord, Show)
 
 -- | Histogram on which some bins are undefined.
