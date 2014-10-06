@@ -5,8 +5,11 @@ module Histogram.Compare (
 
 import Prelude
 
+import Control.Lens
+import Control.Monad.Trans.State.Strict
 import Data.Function
-import qualified Data.Vector.Storable as V
+import qualified Data.Vector          as V
+import qualified Data.Vector.Storable as VS
 import Foreign.Storable (Storable)
 import Vision.Histogram (Histogram (..), compareIntersect, index, linearIndex)
 import Vision.Primitive (Z, (:.), DIM1, DIM3, ix1, shapeLength)
@@ -47,7 +50,7 @@ comparePartial PartialHistogram {..} HeterogeneousHistogram {..} =
   where
     intersec hist ixs vals =
         let step !ix !val = min val (hist `linearIndex` ix)
-        in V.sum $ V.zipWith step ixs vals
+        in VS.sum $ VS.zipWith step ixs vals
 {-# SPECIALIZE comparePartial :: PartialHistogram Float
                               -> HeterogeneousHistogram Float -> Float #-}
 
@@ -58,13 +61,13 @@ comparePartial PartialHistogram {..} HeterogeneousHistogram {..} =
 -- @compareCrossBinHist1D intersec hist1 hist2@ where
 -- @intersec == compareIntersect hist1 hist2@.
 compareCrossBinHist1D :: (Storable a, Ord a, Fractional a)
-              => a -> Histogram DIM1 a -> Histogram DIM1 a -> a
+                      => a -> Histogram DIM1 a -> Histogram DIM1 a -> a
 compareCrossBinHist1D intersec hist1@(Histogram sh1 vec1)
                                hist2@(Histogram sh2 vec2)
     | sh1 /= sh2 = error "Histograms are not of equal size."
     | nBins <= 1 = intersec                                  -- [1]
     | otherwise  =
-          (intersec + V.sum (V.izipWith step vec1 vec2) * crossBinFactor)
+          (intersec + VS.sum (VS.izipWith step vec1 vec2) * crossBinFactor)
         * dist1Normalize
   where
     !nBins       = shapeLength sh1
@@ -97,30 +100,104 @@ compareCrossBinHist1D intersec hist1@(Histogram sh1 vec1)
 {-# SPECIALIZE compareCrossBinHist1D :: Float -> Histogram DIM1 Float
                                      -> Histogram DIM1 Float -> Float #-}
 
-compareHist3D :: (Storable a, Ord a, Fractional a)
-              => Histogram DIM3 a -> Histogram DIM3 a -> a
-compareHist3D hist1@(Histogram sh1 vec1) hist2@(Histogram sh2 vec2)
+compareCrossBinHist3D :: (Storable a, Ord a, Fractional a)
+                      => a -> Histogram DIM3 a -> Histogram DIM3 a -> a
+compareCrossBinHist3D intersec hist1@(Histogram sh1 vec1)
+                               hist2@(Histogram sh2 vec2)
     | sh1 /= sh2 = error "Histograms are not of equal size."
+    | nBins <= 1 = intersec                                  -- [1]
     | otherwise  =
-          (compareIntersect hist1 hist2 + V.sum (V.izipWith step vec1 vec2))
+        
+          (intersec + VU.sum (VU.izipWith step vec1 vec2) * crossBinFactor)
         * dist1Normalize
   where
-    !(Z :. d :. h :. w) = sh1
 
-    !maxZ = d - 1
-    !maxH = h - 1
-    !maxW = w - 1
+    evalState (0, 0, 0) $ do
+        let !(Z :. nHues :. nSats :. nVals) = sh1
+            !maxHue = nHues - 1
+            !maxSat = nSats - 1
+            !maxVal = nVals - 1
 
-    step ix v1 v2 =
-        let !(Z :. z :. y :. x)    = fromLinearIndex ix
-            !front | z == 0        = 
-                   | otherwise   = ix - 1
-            !left | x == 0     = maxIx
-                  | otherwise   = ix - 1
-            !rightIx | ix == maxIx = 0
-                     | otherwise   = ix + 1
-        in min (hist1 `index` ix1 leftIx + v1 + hist1 `index` ix1 rightIx)
-               (hist2 `index` ix1 leftIx + v2 + hist2 `index` ix1 rightIx)
+            !satsIxs = V.generate nSats (nonCyclicalIxs maxSat)
+            !valsIxs = V.generate nVals (nonCyclicalIxs maxVal)
+
+        VS.forM_ (VS.enumFromN 0 nHues) $ \h -> do
+            let !hueIxs = cyclicalIxs h maxHue
+
+            V.forM_ satsIxs $ \satIxs -> do
+                V.forM_ valsIxs $ \valIxs -> do
+                    sums <- get
+
+--                     -- 1D sum.
+--                     VS.zipWith3 
+--                     sums._1 += 10
+--                     sums._1 += 10
+--                     sums._1 += 10
+-- 
+--                     --
+-- 
+--     cyclicalIxs !maxIx !ix =
+--         VS.generate 3 (\i -> case i of 0 | ix == 0     -> maxIx
+--                                          | otherwise   -> ix - 1
+--                                        1               -> ix
+--                                        2 | ix == maxIx -> 0
+--                                          | otherwise   -> ix + 1
+-- 
+--     nonCyclicalIxs !maxIx !ix =
+--         let !hasLeft  = ix > 0
+--             !hasRight = ix < maxIx
+--         in if | hasLeft && hasRight = V.enumFromN (ix - 1) 3
+--               | hasLeft             = V.enumFromN (ix - 1) 2
+--               | hasRight            = V.enumFromN ix       2
+--               | otherwise           = V.singleton ix
+-- 
+--     step (Z :. h :. s :. v) ix v1 v2 =
+--         let !hueLeft  | h == 0      = maxHue
+--                       | otherwise   = h - 1
+--             !hueRight | h == maxHue = 0
+--                       | otherwise   = h + 1
+-- 
+--             !hueIxs = V.fromList [ hueLeft, h, hueRight ]
+-- 
+--             !satHasLeft  = s > 0
+--             !satHasRight = s < maxSat
+-- 
+--             
+-- 
+--             !valHasLeft  = v > 0
+--             !valHasRight = v < maxVal
+-- 
+--             !dist1 = min (   v1
+--                            + hist1 `index` ix3 hueLeft  s v
+--                            + hist1 `index` ix3 hueRight s v
+--                            + if satHasLeft  then hist1 `index` ix3 h (s - 1) v
+--                                             else 0
+--                            + if satHasRight then hist1 `index` ix3 h (s + 1) v
+--                                             else 0
+--                            + if valHasLeft  then hist1 `index` ix3 h s (v - 1)
+--                                             else 0
+--                            + if valHasRight then hist1 `index` ix3 h s (v + 1)
+--                                             else 0)
+--                          (   v2
+--                            + hist2 `index` ix3 hueLeft  s v
+--                            + hist2 `index` ix3 hueRight s v
+--                            + if satHasLeft  then hist2 `index` ix3 h (s - 1) v
+--                                             else 0
+--                            + if satHasRight then hist2 `index` ix3 h (s + 1) v
+--                                             else 0
+--                            + if valHasLeft  then hist2 `index` ix3 h s (v - 1)
+--                                             else 0
+--                            + if valHasRight then hist2 `index` ix3 h s (v + 1)
+--                                             else 0)
+-- 
+--         let !hasLeft  = ix > 0
+--             !hasRight = ix < maxIx
+-- 
+--         in if | hasLeft && hasRight      = f3 v1 v2 (ix - 1) (ix + 1)
+--               | hasLeft                  = f2 v1 v2 (ix - 1)
+--               | otherwise {- hasRight -} = f2 v1 v2 (ix + 1) -- Implied by [1].
+-- 
+--         zIxs = V.
 {-# SPECIALIZE compareHist1D :: Histogram DIM1 Float -> Histogram DIM1 Float
                              -> Float #-}
 
