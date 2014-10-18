@@ -107,97 +107,98 @@ compareCrossBinHist3D intersec hist1@(Histogram sh1 vec1)
     | sh1 /= sh2 = error "Histograms are not of equal size."
     | nBins <= 1 = intersec                                  -- [1]
     | otherwise  =
+        let (!sum1D, !sum2D, !sum3D) = crossBinSums
+            
         
           (intersec + VU.sum (VU.izipWith step vec1 vec2) * crossBinFactor)
         * dist1Normalize
   where
+    !(Z :. nHues :. nSats :. nVals) = sh1
 
-    evalState (0, 0, 0) $ do
-        let !(Z :. nHues :. nSats :. nVals) = sh1
-            !maxHue = nHues - 1
+    crossBinSums = evalState (0, 0, 0) $ do
+        let !maxHue = nHues - 1
             !maxSat = nSats - 1
             !maxVal = nVals - 1
 
+            -- Precomputes left and right indexes for every saturation and value
+            -- coordinates.
             !satsIxs = V.generate nSats (nonCyclicalIxs maxSat)
             !valsIxs = V.generate nVals (nonCyclicalIxs maxVal)
 
         VS.forM_ (VS.enumFromN 0 nHues) $ \h -> do
             let !hueIxs = cyclicalIxs h maxHue
 
-            V.forM_ satsIxs $ \satIxs -> do
-                V.forM_ valsIxs $ \valIxs -> do
-                    sums <- get
+            V.forM_ (VS.enumFromN 0 nSats) $ \s -> do
+                let !satIxs = satsIxs V.! s
 
---                     -- 1D sum.
---                     VS.zipWith3 
---                     sums._1 += 10
---                     sums._1 += 10
---                     sums._1 += 10
--- 
---                     --
--- 
---     cyclicalIxs !maxIx !ix =
---         VS.generate 3 (\i -> case i of 0 | ix == 0     -> maxIx
---                                          | otherwise   -> ix - 1
---                                        1               -> ix
---                                        2 | ix == maxIx -> 0
---                                          | otherwise   -> ix + 1
--- 
---     nonCyclicalIxs !maxIx !ix =
---         let !hasLeft  = ix > 0
---             !hasRight = ix < maxIx
---         in if | hasLeft && hasRight = V.enumFromN (ix - 1) 3
---               | hasLeft             = V.enumFromN (ix - 1) 2
---               | hasRight            = V.enumFromN ix       2
---               | otherwise           = V.singleton ix
--- 
---     step (Z :. h :. s :. v) ix v1 v2 =
---         let !hueLeft  | h == 0      = maxHue
---                       | otherwise   = h - 1
---             !hueRight | h == maxHue = 0
---                       | otherwise   = h + 1
--- 
---             !hueIxs = V.fromList [ hueLeft, h, hueRight ]
--- 
---             !satHasLeft  = s > 0
---             !satHasRight = s < maxSat
--- 
---             
--- 
---             !valHasLeft  = v > 0
---             !valHasRight = v < maxVal
--- 
---             !dist1 = min (   v1
---                            + hist1 `index` ix3 hueLeft  s v
---                            + hist1 `index` ix3 hueRight s v
---                            + if satHasLeft  then hist1 `index` ix3 h (s - 1) v
---                                             else 0
---                            + if satHasRight then hist1 `index` ix3 h (s + 1) v
---                                             else 0
---                            + if valHasLeft  then hist1 `index` ix3 h s (v - 1)
---                                             else 0
---                            + if valHasRight then hist1 `index` ix3 h s (v + 1)
---                                             else 0)
---                          (   v2
---                            + hist2 `index` ix3 hueLeft  s v
---                            + hist2 `index` ix3 hueRight s v
---                            + if satHasLeft  then hist2 `index` ix3 h (s - 1) v
---                                             else 0
---                            + if satHasRight then hist2 `index` ix3 h (s + 1) v
---                                             else 0
---                            + if valHasLeft  then hist2 `index` ix3 h s (v - 1)
---                                             else 0
---                            + if valHasRight then hist2 `index` ix3 h s (v + 1)
---                                             else 0)
--- 
---         let !hasLeft  = ix > 0
---             !hasRight = ix < maxIx
--- 
---         in if | hasLeft && hasRight      = f3 v1 v2 (ix - 1) (ix + 1)
---               | hasLeft                  = f2 v1 v2 (ix - 1)
---               | otherwise {- hasRight -} = f2 v1 v2 (ix + 1) -- Implied by [1].
--- 
---         zIxs = V.
+                V.forM_ (VS.enumFromN 0 nSats) $ \v -> do
+                    let !valIxs  = valsIxs V.! v
+                        !center1 = hist1 `index` ix3 h s v
+                        !center2 = hist2 `index` ix3 h s v
+
+                        sum1D !hist =
+                               sumMapIx1 (\h' -> ix3 h' s v) hueIxs hist
+                             + sumMapIx1 (\s' -> ix3 h s' v) satIxs hist
+                             + sumMapIx1 (\v' -> ix3 h s v') valIxs hist
+
+                        !sum1D1 = sum1D hist1 + center1
+                        !sum1D2 = sum1D hist2 + center2
+
+                        sum2D !hist =
+                               sumMapIx2 (\h' s' -> ix3 h' s' v) hueIxs satIxs
+                                         hist
+                             + sumMapIx2 (\h' v' -> ix3 h' s v') hueIxs valIxs
+                                         hist
+                             + sumMapIx2 (\s' v' -> ix3 h s' v') satIxs valIxs
+                                         hist
+
+                        !sum2D1 = sum2D hist1 + sum1D1
+                        !sum2D2 = sum2D hist2 + sum1D2
+
+                        sum3D !hist = sumMapIx3 hueIxs satIxs valIxs hist
+
+                        !sum3D1 = sum3D hist1 + sum2D1
+                        !sum3D2 = sum3D hist2 + sum2D2
+
+                    _1 += min sum1D1 sum1D2
+                    _2 += min sum2D1 sum2D2
+                    _3 += min sum3D1 sum3D2
+
+    cyclicalIxs !maxIx !ix =
+        VS.cons (                if ix == 0     then maxIx else ix - 1)
+                (VS.singleton $! if ix == maxIx then 0     else ix + 1)
+
+    nonCyclicalIxs !maxIx !ix =
+        let !hasLeft  = ix > 0
+            !hasRight = ix < maxIx
+        in if | hasLeft   = if | hasRight  = VS.cons               (ix - 1)
+                                                     (VS.singleton (ix + 1))
+                               | otherwise = VS.singleton (ix - 1)
+              | hasRight  = VS.singleton (ix + 1)
+              | otherwise = VS.empty
+
+    -- Sums the values at the indexes generated by the function iterated over
+    -- a vector.
+    -- > sumMapIx f vec1 hist = sum [ hist `index` f a | a <- vec ]
+    sumMapIx1 !f !vec !hist = VS.foldl' (\acc a -> acc + hist `index` f a) 0 vec
+
+    -- Sums the values at the indexes generated by the function iterated over
+    -- two vectors.
+    -- > sumMapIx2 f vec1 vec2 hist = sum [ hist `index` f a b
+    --                                    | a <- vec1, b <- vec2 ]
+    sumMapIx2 !f !vec1 !vec2 !hist =
+        VS.foldl' (\acc a -> acc + sumMapIx1 (f a) vec2 hist) 0 vec1
+
+    -- Sums the values at the indexes generated by the iteration over three 
+    -- vectors.
+    -- > sumMapIx3 vec1 vec2 vec3 hist = sum [ hist `index` ix3 a b c
+    --                                       | a <- vec1, b <- vec2, c <- vec3 ]
+    sumMapIx3 !f !vec1 !vec2 !vec3 !hist =
+        VS.foldl' (\acc a -> acc + sumMapIx2 (ix3 a) vec2 vec3 hist)
+                  0 vec1
+
+    nBins1D = 
+        let nHues = 3
 {-# SPECIALIZE compareHist1D :: Histogram DIM1 Float -> Histogram DIM1 Float
                              -> Float #-}
 
