@@ -1,56 +1,56 @@
-name:              mapix-api
-version:           0.0.0
-cabal-version:     >= 1.10
-build-type:        Simple
+name:                   mapix-api
+version:                0.0.0
+cabal-version:          >= 1.10
+build-type:             Simple
 
 Flag dev
-    Description:   Turn on development settings, like auto-reload templates.
-    Default:       False
+    Description:        Turn on development settings, like auto-reload templates.
+    Default:            False
 
 Flag library-only
-    Description:   Build for use with "yesod devel"
-    Default:       False
+    Description:        Build for use with "yesod devel"
+    Default:            False
 
 library
-    exposed-modules: Application
-                     Foundation
-                     Handler.Config
-                     Handler.Error
-                     Handler.Image
-                     Handler.Search
-                     Handler.Tag
-                     Handler.Internal.Form
-                     Handler.Internal.Json
-                     Handler.Internal.Listing
-                     Handler.Internal.Type
-                     Handler.Internal.Mashape
-                     Histogram
-                     Histogram.Color
-                     Histogram.Compare
-                     Histogram.Compress
-                     Histogram.Compute
-                     Histogram.Config
-                     Histogram.Serialize
-                     Histogram.Type
-                     ImageIndex
-                     ImageIndex.Instance
-                     ImageIndex.Manage
-                     ImageIndex.Persistent
-                     ImageIndex.Persistent.Manage
-                     ImageIndex.Persistent.Model
-                     ImageIndex.Persistent.Restore
-                     ImageIndex.Search
-                     ImageIndex.Tag
-                     ImageIndex.Type
-                     Import
-                     Settings
-                     Settings.Development
+    exposed-modules:    Application
+                        Foundation
+                        Handler.Config
+                        Handler.Error
+                        Handler.Image
+                        Handler.Search
+                        Handler.Tag
+                        Handler.Internal.Form
+                        Handler.Internal.Json
+                        Handler.Internal.Listing
+                        Handler.Internal.Type
+                        Handler.Internal.Mashape
+                        Histogram
+                        Histogram.Color
+                        Histogram.Compare
+                        Histogram.Compress
+                        Histogram.Compute
+                        Histogram.Config
+                        Histogram.Serialize
+                        Histogram.Type
+                        ImageIndex
+                        ImageIndex.Instance
+                        ImageIndex.Manage
+                        ImageIndex.Persistent
+                        ImageIndex.Persistent.Manage
+                        ImageIndex.Persistent.Model
+                        ImageIndex.Persistent.Restore
+                        ImageIndex.Search
+                        ImageIndex.Tag
+                        ImageIndex.Type
+                        Import
+                        Settings
+                        Settings.Development
 
     if flag(dev) || flag(library-only)
-        cpp-options:   -DDEVELOPMENT
-        ghc-options:   -Wall -O0
+        cpp-options:    -DDEVELOPMENT
+        ghc-options:    -Wall -O0
     else
-        ghc-options:   -Wall -O2
+        ghc-options:    -Wall -O2
 
     default-language:   Haskell2010
     extensions:         BangPatterns
@@ -73,47 +73,48 @@ library
                         TypeFamilies
                         UndecidableInstances
 
-    build-depends: base                         >= 4            && < 5
-                 , aeson
-                 , cereal                       >= 0.4.0.1      && < 0.5
-                 , bytestring                   >= 0.9          && < 0.11
-                 , conduit                      >= 1.0
-                 , conduit-extra                >= 1.1.0.4      && < 2.0
-                 , containers                   >= 0.5.5.1      && < 0.6
-                 , clientsession                >= 0.9.0.3      && < 0.10
-                 , data-default
-                 , digits                       >= 0.2          && < 0.3
-                 , directory                    >= 1.1          && < 1.3
-                 , fast-logger                  >= 2.1
-                 , filepath                     >= 1.3.0.1      && < 2.0
-                 , friday                       >= 0.1.3        && < 0.2
-                 , http-conduit                 >= 2.1          && < 2.2
-                 , http-types                   >= 0.8.5        && < 0.9
-                 , monad-control                >= 0.3          && < 0.4
-                 , monad-logger                 >= 0.3
-                 , parallel                     >= 3.2.0.4      && < 4.0
-                 , parsec                       >= 3.1.5        && < 4.0
-                 , persistent                   >= 2.0.2        && < 3.0
-                 , persistent-sqlite            >= 2.0.0.1      && < 3.0
-                 , persistent-template          >= 2.0.1        && < 3.0
-                 , random                       >= 1.0.1.1      && < 2.0
-                 , resourcet                    >= 1.1.2.2      && < 2.0
-                 , SHA                          >= 1.6.1        && < 2.0
-                 , stm                          >= 2.4.3        && < 3.0
-                 , template-haskell
-                 , text                         >= 0.11         && < 2.0
-                 , time                         >= 1.4.2        && < 2.0
-                 , transformers                 >= 0.4.1.0      && < 0.5
-                 , unordered-containers         >= 0.2.5.0      && < 0.3
-                 , vector                       >= 0.10.9.1     && < 1.0
-                 , warp                         >= 3.0          && < 3.1
-                 , wai-extra                    >= 3.0          && < 3.1
-                 , wai-logger                   >= 2.1          && < 2.2
-                 , yaml                         >= 0.8          && < 0.9
-                 , yesod                        >= 1.2.6.1      && < 1.3
-                 , yesod-core                   >= 1.2.13       && < 1.3
-                 , yesod-form                   >= 1.3          && < 1.4
-                 , yesod-persistent             >= 1.2.3.1      && < 1.3
+    build-depends:      base                         >= 4            && < 5
+                      , aeson
+                      , cereal                       >= 0.4.0.1      && < 0.5
+                      , bytestring                   >= 0.9          && < 0.11
+                      , conduit                      >= 1.0
+                      , conduit-extra                >= 1.1.0.4      && < 2.0
+                      , containers                   >= 0.5.5.1      && < 0.6
+                      , clientsession                >= 0.9.0.3      && < 0.10
+                      , data-default
+                      , digits                       >= 0.2          && < 0.3
+                      , directory                    >= 1.1          && < 1.3
+                      , fast-logger                  >= 2.1
+                      , filepath                     >= 1.3.0.1      && < 2.0
+                      , friday                       >= 0.2          && < 0.3
+                      , friday-devil                 >= 0.1          && < 0.2
+                      , http-conduit                 >= 2.1          && < 2.2
+                      , http-types                   >= 0.8.5        && < 0.9
+                      , monad-control                >= 0.3          && < 0.4
+                      , monad-logger                 >= 0.3
+                      , parallel                     >= 3.2.0.4      && < 4.0
+                      , parsec                       >= 3.1.5        && < 4.0
+                      , persistent                   >= 2.0.2        && < 3.0
+                      , persistent-sqlite            >= 2.0.0.1      && < 3.0
+                      , persistent-template          >= 2.0.1        && < 3.0
+                      , random                       >= 1.0.1.1      && < 2.0
+                      , resourcet                    >= 1.1.2.2      && < 2.0
+                      , SHA                          >= 1.6.1        && < 2.0
+                      , stm                          >= 2.4.3        && < 3.0
+                      , template-haskell
+                      , text                         >= 0.11         && < 2.0
+                      , time                         >= 1.4.2        && < 2.0
+                      , transformers                 >= 0.4.1.0      && < 0.5
+                      , unordered-containers         >= 0.2.5.0      && < 0.3
+                      , vector                       >= 0.10.9.1     && < 1.0
+                      , warp                         >= 3.0          && < 3.1
+                      , wai-extra                    >= 3.0          && < 3.1
+                      , wai-logger                   >= 2.1          && < 2.2
+                      , yaml                         >= 0.8          && < 0.9
+                      , yesod                        >= 1.2.6.1      && < 1.3
+                      , yesod-core                   >= 1.2.13       && < 1.3
+                      , yesod-form                   >= 1.3          && < 1.4
+                      , yesod-persistent             >= 1.2.3.1      && < 1.3
 
 executable         mapix-api
     if flag(library-only)
@@ -142,7 +143,7 @@ Benchmark       benchmark
 
     build-depends:      base                    >= 4            && < 5
                       , criterion               >= 1.0          && < 2.0
-                      , friday                  >= 0.1.3        && < 0.2
+                      , friday                  >= 0.2          && < 0.3
                       , mapix-api
 
 executable      train
@@ -154,9 +155,9 @@ executable      train
     ghc-options:        -Wall -O2 -rtsopts -threaded
     hs-source-dirs:     train
 
-    build-depends: base                         >= 4            && < 5
-                 , deepseq                      >= 1.3          && < 2
-                 , directory                    >= 1.2          && < 2
-                 , filepath                     >= 1.3          && < 2
-                 , friday                       >= 0.1.3        && < 0.2
-                 , parallel                     >= 3.2          && < 4
+    build-depends:      base                    >= 4            && < 5
+                      , deepseq                 >= 1.3          && < 2
+                      , directory               >= 1.2          && < 2
+                      , filepath                >= 1.3          && < 2
+                      , friday                  >= 0.2          && < 0.3
+                      , parallel                >= 3.2          && < 4

@@ -56,19 +56,20 @@ instance Serialize (Histogram sh a) => PersistFieldSql (Histogram sh a) where
 
 -- HeterogeneousHistogram ------------------------------------------------------
 
-instance (Serialize (Histogram ColorIX a), Serialize (Histogram GreyIX a))
-        => Serialize (HeterogeneousHistogram a) where
+instance ( Serialize (Histogram ColorIX Weight)
+         , Serialize (Histogram GreyIX Weight))
+        => Serialize HeterogeneousHistogram where
     put HeterogeneousHistogram {..} = S.put hhColors >> S.put hhGreys
 
     get = HeterogeneousHistogram <$> S.get <*> S.get
 
-instance Serialize (HeterogeneousHistogram a)
-        => PersistField (HeterogeneousHistogram a) where
+instance Serialize HeterogeneousHistogram
+        => PersistField HeterogeneousHistogram where
     toPersistValue = PersistByteString . S.encode
 
     fromPersistValue ~(PersistByteString bs) =
         either (Left . T.pack) Right $ S.decode bs
 
-instance Serialize (HeterogeneousHistogram a)
-        => PersistFieldSql (HeterogeneousHistogram a) where
+instance Serialize HeterogeneousHistogram
+        => PersistFieldSql HeterogeneousHistogram where
     sqlType _ = SqlBlob

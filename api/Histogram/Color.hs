@@ -13,17 +13,19 @@ import Prelude
 import Data.Function
 import Data.List
 import Data.Ratio
-import Data.Vector.Storable (Vector)
-import qualified Data.Vector.Storable as V
 import Data.Word
 import Foreign.Storable (Storable)
 import Vision.Histogram (ToHistogram (..))
-import qualified Vision.Histogram as H
 import Vision.Image (Pixel (..), RGBPixel (..), HSVPixel (..), convert)
 import Vision.Primitive (Z (..), (:.) (..), ix1, ix3)
 
+import qualified Data.Vector as V
+import qualified Data.Vector.Storable as VS
+import qualified Vision.Histogram as H
+
 import Histogram.Config (
-      confHistColorMinSat, confHistColorMinVal, confHistNSat, confHistNVal
+      confHueBins, confHistColorMinSat, confHistColorMinVal, confHistNSat
+    , confHistNVal
     )
 import Histogram.Type (ColorIX, GreyIX, HeterogeneousHistogram (..))
 
@@ -33,23 +35,17 @@ data Color w = Color {
     , cWeight :: !w
     } deriving Show
 
--- | Defines how hue are mapped to the histogram. Each value defines the upper
--- inclusive value of the mapped value. The first bin starts at the end of the
--- last bin.
-colorHues :: [Int]
-colorHues = [7, 21, 32, 83, 97, 130, 143, 167]
-
 -- Color and greyscale pixels --------------------------------------------------
 
 -- Remarks: these instances remap pixels into histograms of the size given by
--- Histogram.Config and colorHues.
+-- Histogram.Config.
 
 -- | Pixels indexed into the color histogram.
 --
 -- As low value and saturation values are not mapped in the color histogram,
--- these are re-mapped in the color histogram.
+-- these values are re-mapped in this type.
 newtype ColorHistPixel = ColorHistPixel { chpHsv :: HSVPixel }
-    deriving (Storable)
+    deriving (Show, Storable)
 
 instance Pixel ColorHistPixel where
     type PixelChannel ColorHistPixel = PixelChannel HSVPixel
@@ -74,8 +70,8 @@ newtype GreyHistPixel = GreyHistPixel { ghpWord8 :: Word8 }
 instance Pixel GreyHistPixel where
     type PixelChannel GreyHistPixel = Word8
 
-    pixNChannels _   = 1
-    pixIndex     p _ = ghpWord8 p
+    pixNChannels = pixNChannels . ghpWord8
+    pixIndex     = pixIndex . ghpWord8
 
 instance ToHistogram GreyHistPixel where
     type PixelValueSpace GreyHistPixel = GreyIX
@@ -141,16 +137,17 @@ binToHsv !(Right (Z :. v))           = HSVPixel 0 0 (greyBinToVal v)
 -- color histogram ([0; length colorHues[).
 hueToBin :: Word8 -> Int
 hueToBin =
-    (vec V.!) . int
+    (vec VS.!) . int
   where
-    !vec = V.fromList $ go 0 ixs
+    !vec = VS.fromList $ go 0 ixs
 
-    ixs = zip (sort colorHues) [0..] ++ [(179, 0)]
+    ixs =    zip [ hbMax | HueBin {..} <- V.toList confHueBins ] [0..]
+          ++ [(179, 0)]
 
     go vecIx _ | vecIx >= 180   = []
     go vecIx ~((end, bin):ends) =
-        let !vecIx' = end + 1
-        in replicate (vecIx' - vecIx) bin ++ go vecIx' ends
+        let !vecIxNext = end + 1
+        in replicate (vecIxNext - vecIx) bin ++ go vecIxNext ends
 
 -- | Precomputed mapping saturation values ([confHistColorMinSat; 256[) to
 -- saturation bin indexes of the color histogram ([0; confHistNSat[).
@@ -173,19 +170,20 @@ valToGreyBin = remapIxs (0, 256) (0, confHistNVal) . int
 -- ([0; length colorHues[) to hue values ([0; 180[).
 binToHue :: Int -> Word8
 binToHue =
-    word8 . (vec V.!)
+    word8 . (vec VS.!)
   where
-    !vec = V.generate (V.length colorHuesVec) remap
+    !vec = VS.generate (VS.length colorHuesVec) remap
 
+    -- Returns the center value of the given bin.
     remap bin =
         let -- start is the index of the first cell of the bin.
-            !start | bin == 0  = V.last colorHuesVec        + 1
-                   | otherwise = colorHuesVec V.! (bin - 1) + 1
+            !start | bin == 0  = hbMax (V.last hueBins)  + 1
+                   | otherwise = (hueBins V.! (bin - 1)) + 1
 
             -- end is the index of the first cell of the next bin.
-            !end    = colorHuesVec V.! bin + 1
+            !end = (confHueBins V.! bin) + 1
 
-            !binLen | bin == 0  = (end + 180) - start
+            !binLen | bin == 0  = end + (180 - start)
                     | otherwise = end - start
         in (start + round (binLen % 2)) `mod` 180
 
@@ -211,24 +209,21 @@ greyBinToVal = word8 . remapIxs (0, confHistNVal) (0, 256)
 -- precomputed vector.
 remapIxs :: (Int, Int) -> (Int, Int) -> (Int -> Int)
 remapIxs (srcFrom, srcTo) (dstFrom, dstTo) =
-    \val -> (vec V.! (val - srcFrom)) + dstFrom
+    \val -> (vec VS.! (val - srcFrom)) + dstFrom
   where
     !nSrc  = srcTo - srcFrom
     !nDst  = dstTo - dstFrom
     !scale = nDst % nSrc
 
-    !vec   = V.generate nSrc remap
+    !vec   = VS.generate nSrc remap
 
     remap ix = round $! ((ratio ix + 0.5) * scale) - 0.5
 {-# NOINLINE remapIxs #-} -- GHC stack overflows when inlining this function.
 
 -- Constants -------------------------------------------------------------------
 
-colorHuesVec :: Vector Int
-colorHuesVec = V.fromList colorHues
-
 colorsHistSize :: ColorIX
-colorsHistSize = ix3 (V.length colorHuesVec) confHistNSat confHistNVal
+colorsHistSize = ix3 (VS.length colorHuesVec) confHistNSat confHistNVal
 
 greysHistSize :: GreyIX
 greysHistSize = ix1 confHistNVal

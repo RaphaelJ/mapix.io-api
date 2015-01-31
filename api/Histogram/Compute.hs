@@ -46,16 +46,12 @@ type Mask = Manifest Bool
 -- | Builds an histogram from a list of images.
 --
 -- Returns a normalized histogram.
-fromImages :: (Storable a, Real a, Fractional a)
-           => Bool -> Bool -> [StorageImage] -> HeterogeneousHistogram a
+fromImages :: Bool -> Bool -> [StorageImage] -> HeterogeneousHistogram
 fromImages !ignoreBack !ignoreSkin =   average
                                      . map (fromImage ignoreBack ignoreSkin)
-{-# SPECIALIZE fromImages :: Bool -> Bool -> [StorageImage]
-                          -> HeterogeneousHistogram Float #-}
 
 -- | Builds an histogram from an image.
-fromImage :: (Storable a, Real a, Fractional a)
-          => Bool -> Bool -> StorageImage -> HeterogeneousHistogram a
+fromImage :: Bool -> Bool -> StorageImage -> HeterogeneousHistogram
 fromImage !ignoreBack !ignoreSkin !io =
     let !io' = resize io
 
@@ -100,13 +96,10 @@ fromImage !ignoreBack !ignoreSkin !io =
     -- Does an && between two masks boolean pixels.
     andMasks !m1 !m2 = I.fromFunction (I.shape m1) $ \pt ->
                             m1 `I.index` pt && m2 `I.index` pt
-{-# SPECIALIZE fromImage :: Bool -> Bool -> StorageImage
-                         -> HeterogeneousHistogram Float #-}
 
 -- | Constructs an histogram from the given list of weighted colors.
 -- Returns a normalized histogram.
-fromColors :: (Fractional a, Real a, Storable a)
-           => [Color a] -> HeterogeneousHistogram a
+fromColors :: [Color] -> HeterogeneousHistogram
 fromColors xs =
     let (colors, greys) = partitionEithers $ map colorToBin xs
 
@@ -125,7 +118,6 @@ fromColors xs =
 
             toHistLinearIndex = toLinearIndex histSize
         in Histogram histSize vec
-{-# SPECIALIZE fromColors :: [Color Float] -> HeterogeneousHistogram Float #-}
 
 -- -----------------------------------------------------------------------------
 
@@ -156,8 +148,7 @@ resize io | h <= confMaxImageSize && w <= confMaxImageSize = io
 
 -- | Computes the average of a set of histograms.
 -- Returns a normalized histogram.
-average :: (Storable a, Real a, Fractional a)
-         => [HeterogeneousHistogram a] -> HeterogeneousHistogram a
+average :: [HeterogeneousHistogram] -> HeterogeneousHistogram
 average []     = error "Empty histogram list."
 average [hist] = normalize hist
 average hists  =
@@ -179,8 +170,7 @@ average hists  =
                        -> HeterogeneousHistogram Float #-}
 
 -- | Normalizes the 'HeterogeneousHistogram' so the sum of its values equals 1.
-normalize :: (Storable a, Real a, Fractional a)
-          => HeterogeneousHistogram a -> HeterogeneousHistogram a
+normalize :: HeterogeneousHistogram -> HeterogeneousHistogram
 normalize HeterogeneousHistogram {..} =
     let !sumColors = histSum hhColors
         !sumGreys  = histSum hhGreys
