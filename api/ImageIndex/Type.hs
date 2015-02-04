@@ -94,6 +94,4 @@ data IndexedImage = IndexedImage {
     , iiHist :: !IndexedHistogram
     } deriving (Eq, Ord)
 
-type IndexedHistogramBin = Float
-
-type IndexedHistogram = HeterogeneousHistogram IndexedHistogramBin
+type IndexedHistogram = HeterogeneousHistogram
