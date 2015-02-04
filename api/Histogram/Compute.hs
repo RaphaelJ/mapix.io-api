@@ -17,11 +17,9 @@ import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Ratio
-import qualified Data.Vector.Storable as V
 import Foreign.Storable (Storable)
 import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
-import qualified Vision.Histogram as H
 import Vision.Image (
       Image, ImagePixel, ImageChannel, FromFunction, FromFunctionPixel
     , Interpolable
@@ -29,10 +27,13 @@ import Vision.Image (
     , Grey, GreyPixel, HSV, HSVPixel, RGBA, RGB, StorageImage (..)
     , SeparableFilter
     )
-import qualified Vision.Image as I
 import Vision.Primitive (
       Z (..), (:.) (..), Point, Size, ix2, shapeLength, toLinearIndex
     )
+
+import qualified Data.Vector.Storable   as V
+import qualified Vision.Histogram       as H
+import qualified Vision.Image           as I
 
 import Histogram.Color (
       Color (..), ColorHistPixel, GreyHistPixel

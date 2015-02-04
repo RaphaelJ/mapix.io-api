@@ -1,6 +1,6 @@
 module Histogram.Config (
-      confHistColorMinSat, confHistColorMinVal, confHistNSat, confHistNVal
-    , confMaxImageSize, confCrossBinWeight
+      confHueBins, confHueSimilarityMatrix, confHistColorMinSat
+    , confHistColorMinVal, confHistNSat, confHistNVal, confMaxImageSize
     ) where
 
 import Prelude
@@ -32,7 +32,7 @@ confHueBins = VS.fromList [
 -- comparison.
 confHueSimilarityMatrix :: V.Vector BinsSimilarity
 confHueSimilarityMatrix = V.fromList [
-    , BinsSimilarity 0 1 0.5  -- Red & orange
+      BinsSimilarity 0 1 0.5  -- Red & orange
     , BinsSimilarity 1 2 0.3  -- Orange & yellow
     , BinsSimilarity 2 3 0.2  -- Yellow & green
     , BinsSimilarity 3 4 0.5  -- Green & lime green

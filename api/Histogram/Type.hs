@@ -6,15 +6,14 @@ import Data.Vector.Storable (Vector)
 import Vision.Histogram (Histogram (..))
 import Vision.Primitive (DIM1, DIM3)
 
-import qualified Data.Vector.Generic            as G
-import qualified Data.Vector.Generic.Mutable    as M
+import qualified Data.Vector.Storable   as VS
 
 type Weight = Float
 
 -- | Defines the similarity between two bins in a cross bin comparison.
 data BinsSimilarity = BinsSimilarity {
     -- | First bin index.
-    , bsBin1 :: Int
+      bsBin1 :: Int
     -- | Second bin index.
     , bsBin2 :: Int
     -- | Similarity factor for this pair of bins.
@@ -34,6 +33,13 @@ data HeterogeneousHistogram = HeterogeneousHistogram {
     , hhGreys     :: !(Histogram GreyIX  Weight)
     , hhColorsSum :: !Weight                     -- ^ @== sum hhColors@.
     } deriving (Eq, Ord, Show)
+
+-- | Utility to construct an 'HeterogeneousHistogram' without having to compute
+-- 'hhColorsSum'.
+heterogeneousHistogram :: Histogram ColorIX Weight -> Histogram GreyIX  Weight
+                       -> HeterogeneousHistogram
+heterogeneousHistogram colors greys =
+    HeterogeneousHistogram colors greys (VS.sum $ vector colors)
 
 -- | Histogram on which some bins are undefined.
 --

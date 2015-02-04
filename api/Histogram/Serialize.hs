@@ -8,15 +8,19 @@ import Prelude
 
 import Control.Applicative
 import Data.Serialize (Serialize)
-import qualified Data.Serialize as S
-import qualified Data.Text as T
-import qualified Data.Vector.Storable as SV
 import Database.Persist.Sql (PersistFieldSql (..))
 import Vision.Histogram (Histogram (..))
 import Vision.Primitive (Shape, Z (..), (:.) (..), shapeLength)
 import Yesod
 
-import Histogram.Type (HeterogeneousHistogram (..), ColorIX, GreyIX)
+import qualified Data.Serialize         as S
+import qualified Data.Text              as T
+import qualified Data.Vector.Storable   as VS
+
+import Histogram.Type (
+      HeterogeneousHistogram (..), heterogeneousHistogram
+    , ColorIX, GreyIX, Weight
+    )
 
 -- Shapes ----------------------------------------------------------------------
 
@@ -39,11 +43,11 @@ instance Serialize sh => Serialize (sh :. Int) where
 instance (Shape sh, Serialize sh) => Serialize (Histogram sh Float) where
     put (Histogram sh vec) = do
         S.put sh
-        SV.forM_ vec S.putFloat32le
+        VS.forM_ vec S.putFloat32le
 
     get = do
         sh <- S.get
-        Histogram sh <$> SV.replicateM (shapeLength sh) S.getFloat32le
+        Histogram sh <$> VS.replicateM (shapeLength sh) S.getFloat32le
 
 instance Serialize (Histogram sh a) => PersistField (Histogram sh a) where
     toPersistValue = PersistByteString . S.encode
@@ -61,7 +65,7 @@ instance ( Serialize (Histogram ColorIX Weight)
         => Serialize HeterogeneousHistogram where
     put HeterogeneousHistogram {..} = S.put hhColors >> S.put hhGreys
 
-    get = HeterogeneousHistogram <$> S.get <*> S.get
+    get = heterogeneousHistogram <$> S.get <*> S.get
 
 instance Serialize HeterogeneousHistogram
         => PersistField HeterogeneousHistogram where
