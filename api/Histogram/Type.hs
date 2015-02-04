@@ -20,7 +20,7 @@ data BinsSimilarity = BinsSimilarity {
     -- | Similarity factor for this pair of bins.
     -- Defines the weight of the comparison with the corresponding bin.
     -- Direct bin comparison is weighted at 1.
-    -- e.g. (-1, 0.25) defines that the comparison with the previous bin has one
+    -- e.g. 0.25 defines that the comparison with the previous bin has one
     -- fourth of the weight of a direct bin comparison.
     , bsSimilarity :: Weight
     } deriving Show
