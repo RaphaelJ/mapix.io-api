@@ -23,11 +23,10 @@ data SearchResult a = SearchResult {
 search :: Int -> Weight -> Set IndexedImage -> IndexedHistogram
        -> [SearchResult]
 search !nResults !minScore imgs !hist =
-    let directs = sortByScore directs  [
-              SearchResult img directScore
-            | img@(IndexedImage {..}) <- S.toList imgs
-            , let !directScore = intersec hist iiHist
-            ]
+    let directs = sortByScore [ SearchResult img directScore
+                              | img@(IndexedImage {..}) <- S.toList imgs
+                              , let !directScore = intersec hist iiHist
+                              ]
                   , let !score = crossIntersec (intersec hist iiHist) hist
                                                iiHist
                   , score >= minScore ]
