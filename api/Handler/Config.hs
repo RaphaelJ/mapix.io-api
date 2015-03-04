@@ -2,6 +2,8 @@ module Handler.Config where
 
 import Prelude
 
+import Histogram (Intersec)
+
 -- | Maximum file size of a side of an image.
 confMaxFileSize :: Int
 confMaxFileSize = 4 * 1024 * 1024
@@ -15,9 +17,9 @@ confMaxCount :: Int
 confMaxCount = 500
 
 -- | Minimum score for matches to be listed in search results.
-confMinScore :: Float
+confMinScore :: Intersec
 confMinScore = 0.05
 
 -- | Default minimum score for matches to be listed in search results.
-confDefaultMinScore :: Float
+confDefaultMinScore :: Intersec
 confDefaultMinScore = 0.05

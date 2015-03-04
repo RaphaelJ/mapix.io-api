@@ -2,17 +2,17 @@ module Handler.Search (
       postColorSearchR, postImageSearchR
     ) where
 
-import Import
+import Import hiding (count)
 
 import Data.Maybe
 
-import Handler.Config (confDefaultMinScore)
+import Handler.Config (confDefaultCount, confMaxCount, confDefaultMinScore)
 import Handler.Error (APIError (IndexExhausted), apiFail)
 import Handler.Internal.Form (
       ImagesForm (..), imagesForm, filterForm
     , jsonField, scoreField
     )
-import Handler.Internal.Listing (listing, listingForm)
+import Handler.Internal.Listing (ListingForm (..), listing, listingForm)
 import Handler.Internal.Mashape (
       getMashapeHeaders, maxIndexSize, mhUser, mhSubscription
     )
@@ -60,7 +60,11 @@ search' hist = do
 
     case mImgs of
         Just imgs ->
-            let minScore' = fromMaybe confDefaultMinScore minScore
-                results   = search minScore' imgs hist
+            let !offset    = fromMaybe 0 (lfOffset listingParams)
+                !count     = maybe confDefaultCount (min confMaxCount)
+                                   (lfCount listingParams)
+                !nResults  = offset + count
+                !minScore' = fromMaybe confDefaultMinScore minScore
+                results    = search nResults minScore' imgs hist
             in returnJson $ listing listingParams Nothing results
         Nothing   -> apiFail IndexExhausted

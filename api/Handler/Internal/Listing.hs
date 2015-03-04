@@ -27,8 +27,8 @@ instance ToJSON a => ToJSON (Listing a) where
                                  , "results"     .= lObjects ]
 
 data ListingForm = ListingForm {
-      lfCount    :: Maybe Int
-    , lfOffset   :: Maybe Int
+      lfOffset   :: Maybe Int
+    , lfCount    :: Maybe Int
     }
 
 -- | @listing form mLen xs@ will create a 'Listing' object from a subset of
@@ -43,8 +43,8 @@ listing ListingForm {..} mLen xs =
 
 listingForm :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
             => FormInput m ListingForm
-listingForm = ListingForm <$> iopt countField    "count"
-                          <*> iopt positiveField "offset"
+listingForm = ListingForm <$> iopt positiveField "offset"
+                          <*> iopt countField    "count"
 
 countField :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
            => Field m Int

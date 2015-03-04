@@ -6,15 +6,14 @@ module Histogram.Compress (
 
 import Prelude
 import Data.Word
-import Data.Vector.Unboxed (Unbox)
 import Foreign.Storable (Storable (..))
 import Vision.Histogram (Histogram (..))
 import Vision.Primitive (Shape, shapeLength)
 
-import qualified Data.Vector.Storable   as SV
+import qualified Data.Vector.Storable   as VS
 import qualified Data.Vector.Unboxed    as VU
 
-import Histogram (Weight)
+import Histogram.Type (Weight)
 
 -- | Compressed 'Histogram' using a run-length based encoding.
 -- See <https://en.wikipedia.org/wiki/Run-length_encoding>.
@@ -23,23 +22,23 @@ data CompressedHistogram sh = CompressedHistogram {
     , vector :: !(VU.Vector (Word8, Weight)) -- ^ Repetitions of the symbol 'a'.
     } deriving (Eq, Show)
 
-compress :: Histogram sh -> CompressedHistogram sh
+compress :: Histogram sh Weight -> CompressedHistogram sh
 compress !(Histogram sh vec) =
     CompressedHistogram sh (VU.unfoldr step vec)
   where
-    step vec' | SV.null vec' = Nothing
+    step vec' | VS.null vec' = Nothing
               | otherwise    =
-                let !a = SV.head vec'
-                    !n = 1 + (SV.length $ SV.takeWhile (== a)
-                                        $ SV.take maxTail
-                                        $ SV.tail vec')
-                in Just ((word8 n, a), SV.drop n vec')
+                let !a = VS.head vec'
+                    !n = 1 + (VS.length $ VS.takeWhile (== a)
+                                        $ VS.take maxTail
+                                        $ VS.tail vec')
+                in Just ((word8 n, a), VS.drop n vec')
 
     !maxTail = int (maxBound - 1 :: Word8)
 
-decompress :: CompressedHistogram sh -> Histogram sh
+decompress :: Shape sh => CompressedHistogram sh -> Histogram sh Weight
 decompress !(CompressedHistogram sh vec) =
-    Histogram sh (SV.unfoldrN (shapeLength sh) step (0, vec))
+    Histogram sh (VS.unfoldrN (shapeLength sh) step (0, vec))
   where
     step (i, vec') = let (!n, !a) = VU.head vec'
                      in if n > i then Just (a, (i + 1, vec'))
@@ -52,7 +51,7 @@ size :: CompressedHistogram sh -> Int
 size !(CompressedHistogram _ vec) =
     VU.length vec * (sizeOf (undefined :: Word8) + sizeOf (symbol vec))
   where
-    symbol :: UV.Vector (Word8, a) -> a
+    symbol :: VU.Vector (Word8, a) -> a
     symbol _ = undefined
 
 int :: Integral a => a -> Int

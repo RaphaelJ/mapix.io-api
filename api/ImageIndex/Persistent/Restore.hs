@@ -32,7 +32,7 @@ restoreIndex :: (MonadIO m, Functor m) => ImageIndex -> SqlPersistT m ()
 restoreIndex ii = do
     users <- selectList [] []
 
-    -- Loads the entire index in an immutable strucute.
+    -- Loads the entire index in an immutable structure.
     fuis <- forM users $ \(Entity userId (User username)) -> do
         imgs <- selectList [ImageOwner ==. userId] []
 

@@ -44,7 +44,7 @@ instance ToJSON ImageWithColors where
             colors         = toColors (iiHist img) confDefaultMinScore
         in Object $! H.insert "colors" (toJSON colors) imgJson
 
-instance ToJSON w => ToJSON (Color w) where
+instance ToJSON Color where
     toJSON (Color (RGBPixel r g b) w) =
         object [ "hex"    .= hex
                , "rgb"    .= array [r, g, b]
@@ -55,7 +55,7 @@ instance ToJSON w => ToJSON (Color w) where
         toHex v = let (d, m) = int v `divMod` 16
                   in [ intToDigit d, intToDigit m ]
 
-instance FromJSON w => FromJSON (Color w) where
+instance FromJSON Color where
     parseJSON (Object o) = do
         color <-     ((o .: "rgb") >>= rgb)
                  <|> ((o .: "hex") >>= hex)
@@ -84,7 +84,7 @@ instance FromJSON w => FromJSON (Color w) where
         hexChar = satisfy isHexDigit
     parseJSON _          = mzero
 
-instance ToJSON SearchResult where
+instance ToJSON s => ToJSON (SearchResult s) where
     toJSON (SearchResult img score) =
         object [ "image" .= img
                , "score" .= score ]

@@ -17,16 +17,16 @@ import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Ratio
-import Foreign.Storable (Storable)
 import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
 import Vision.Image (
       Image, ImagePixel, ImageChannel, FromFunction, FromFunctionPixel
     , Interpolable
     , DelayedMask, Manifest, MutableManifest
-    , Grey, GreyPixel, HSV, HSVPixel, RGBA, RGB, StorageImage (..)
-    , SeparableFilter
+    , Grey, GreyPixel, HSV, HSVPixel, RGBA, RGB
     )
+import Vision.Image.Storage.DevIL (StorageImage (..))
+
 import Vision.Primitive (
       Z (..), (:.) (..), Point, Size, ix2, shapeLength, toLinearIndex
     )
@@ -40,7 +40,7 @@ import Histogram.Color (
     , toColorHistPixel, toGreyHistPixel, hsvToBin, colorsHistSize, greysHistSize
     )
 import Histogram.Config (confMaxImageSize)
-import Histogram.Type (HeterogeneousHistogram (..))
+import Histogram.Type (HeterogeneousHistogram (..), heterogeneousHistogram)
 
 type Mask = Manifest Bool
 
@@ -90,7 +90,7 @@ fromImage !ignoreBack !ignoreSkin !io =
             colorsHist = H.histogram (Just colorsHistSize) colors
             greysHist  = H.histogram (Just greysHistSize)  greys
 
-        in runEval $ HeterogeneousHistogram <$> rpar colorsHist
+        in runEval $ heterogeneousHistogram <$> rpar colorsHist
                                             <*> rseq greysHist
     {-# INLINE toHist #-}
 
@@ -104,7 +104,7 @@ fromColors :: [Color] -> HeterogeneousHistogram
 fromColors xs =
     let (colors, greys) = partitionEithers $ map colorToBin xs
 
-    in normalize $ HeterogeneousHistogram (toHist colorsHistSize colors)
+    in normalize $ heterogeneousHistogram (toHist colorsHistSize colors)
                                           (toHist greysHistSize  greys)
   where
     colorToBin Color {..} =
@@ -156,19 +156,17 @@ average hists  =
     let hists'  = map normalize hists
         n       = fromIntegral $ length hists
         sumHist = foldl1 addHeterogeneousHists hists'
-    in HeterogeneousHistogram (H.map (/ n) $ hhColors sumHist)
+    in heterogeneousHistogram (H.map (/ n) $ hhColors sumHist)
                               (H.map (/ n) $ hhGreys  sumHist)
   where
     addHeterogeneousHists hist hist' =
-        HeterogeneousHistogram ((addHists `on` hhColors) hist hist')
+        heterogeneousHistogram ((addHists `on` hhColors) hist hist')
                                ((addHists `on` hhGreys)  hist hist')
 
     addHists !(Histogram sh vec) !(Histogram sh' vec')
         | sh /= sh' = error "Histograms are not of equal size."
         | otherwise = let vecSum = V.zipWith (+) vec vec'
                       in Histogram sh vecSum
-{-# SPECIALIZE average :: [HeterogeneousHistogram Float]
-                       -> HeterogeneousHistogram Float #-}
 
 -- | Normalizes the 'HeterogeneousHistogram' so the sum of its values equals 1.
 normalize :: HeterogeneousHistogram -> HeterogeneousHistogram
@@ -180,11 +178,9 @@ normalize HeterogeneousHistogram {..} =
                 | otherwise     = hhColors
         !greys  | sumGreys  > 0 = H.normalize (sumGreys / total)  hhGreys
                 | otherwise     = hhGreys
-    in HeterogeneousHistogram colors greys
+    in heterogeneousHistogram colors greys
   where
     histSum = V.sum . H.vector
-{-# SPECIALIZE normalize :: HeterogeneousHistogram Float
-                         -> HeterogeneousHistogram Float #-}
 
 -- -----------------------------------------------------------------------------
 
@@ -207,15 +203,15 @@ backgroundMask img =
 
     grey, blurred, edges, closed :: Grey
     !grey    = I.convert img
-    !blurred = blur `I.apply` grey
+    !blurred = I.gaussianBlur blurRadius (Nothing :: Maybe Float) grey
     !edges   = canny sobelRadius cannyLow cannyHigh blurred
     !closed  = closing 2 edges
 
     -- Applies a morphological closing of the given radius.
     closing rad img' =
         let img'' :: Grey
-            !img'' = I.dilate rad `I.apply` img'
-        in I.erode rad `I.apply` img''
+            !img'' = I.dilate rad img'
+        in I.erode rad img''
 
     !flooded = I.create $ do
         mut <- I.thaw closed :: ST s (MutableManifest GreyPixel s)
@@ -233,8 +229,5 @@ backgroundMask img =
             I.floodFill pt backgroundVal mut
 
     isEdge = (== maxBound)
-
-    blur :: SeparableFilter GreyPixel Float GreyPixel
-    !blur = I.gaussianBlur blurRadius Nothing
 
     !(Z :. h :. w) = I.shape grey

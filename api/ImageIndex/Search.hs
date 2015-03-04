@@ -9,7 +9,10 @@ import Data.List
 import Data.Set (Set)
 import qualified Data.Set as S
 
-import Histogram (Weight, compareHeterogeneous)
+import Histogram (
+      Intersec, directIntersec, crossIntersec, intersec
+    , minIntersec, canExceed
+    )
 import ImageIndex.Type (IndexedImage (..), IndexedHistogram)
 
 data SearchResult a = SearchResult {
@@ -20,28 +23,28 @@ data SearchResult a = SearchResult {
 -- | Search the image set for images matching the histogram.
 --
 -- Returns the list of matched images by their decreasing matching score.
-search :: Int -> Weight -> Set IndexedImage -> IndexedHistogram
-       -> [SearchResult]
+search :: Int -> Intersec -> Set IndexedImage -> IndexedHistogram
+       -> [SearchResult Intersec]
 search !nResults !minScore imgs !hist =
-    let directs = sortByScore [ SearchResult img directScore
+    let -- Sorts the images by their direct-bin intersection score.
+        directScores = sortBy (compare `on` (minIntersec . srScore))
+                              [ SearchResult img (directIntersec hist iiHist)
                               | img@(IndexedImage {..}) <- S.toList imgs
-                              , let !directScore = intersec hist iiHist
                               ]
-                  , let !score = crossIntersec (intersec hist iiHist) hist
-                                               iiHist
-                  , score >= minScore ]
-        !lastDirects = directs !! (nResults - 1)
-    in [ SearchResult img (crossIntersec srScore hist iiHist
-        | SearchResult {..} <- takeWhile (`canExceed` lastDirect) directs
-    ]
-  where
-    sortByScore = flip compare `on` srScore
 
---     let results = [ SearchResult img score
---                   | IndexedImage {..} <- S.toList imgs
---                   , let !score = crossIntersec (intersec hist iiHist) hist
---                                                iiHist
---                   , score >= minScore ]
---     in sortBy (flip compare `on` srScore) results
-    
-    
+        -- Removes images whose cross-bin intersection score couldn't exceed
+        -- minScore or the nResults-th direct-bin intersection score.
+        !minDirectScore = minIntersec $ srScore $ directScores !! (nResults - 1)
+        !minScore'      = max minDirectScore minScore
+        directScores'   = takeWhile ((`canExceed` minScore') . srScore)
+                                    directScores
+
+        crossScores = [ direct { srScore = score }
+                      | direct@(SearchResult {..}) <- directScores'
+                      , let !IndexedImage {..} = srImage
+                            !crossScore = crossIntersec srScore hist iiHist
+                            !score      = intersec crossScore
+                      , score >= minScore'
+                      ]
+
+    in take nResults $ sortBy (compare `on` srScore) crossScores

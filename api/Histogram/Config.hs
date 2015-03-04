@@ -1,7 +1,4 @@
-module Histogram.Config (
-      confHueBins, confHueSimilarityMatrix, confHistColorMinSat
-    , confHistColorMinVal, confHistNSat, confHistNVal, confMaxImageSize
-    ) where
+module Histogram.Config where
 
 import Prelude
 
@@ -55,13 +52,17 @@ confHistColorMinSat = 20
 confHistColorMinVal :: Int
 confHistColorMinVal = 20
 
+-- | Number of values bins in the color histogram.
+confHistNHues :: Int
+confHistNHues = VS.length confHueBins
+
 -- | Number of saturation bins in the color histogram.
-confHistNSat :: Int
-confHistNSat = 4
+confHistNSats :: Int
+confHistNSats = 4
 
 -- | Number of value bins in the color and grey histograms.
-confHistNVal :: Int
-confHistNVal = 4
+confHistNVals :: Int
+confHistNVals = 4
 
 -- | Maximum size of a side of an image.
 confMaxImageSize :: Int

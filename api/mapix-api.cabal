@@ -57,8 +57,15 @@ library
     default-extensions: BangPatterns
                         FlexibleContexts
                         FlexibleInstances
+                        GADTs
+                        GeneralizedNewtypeDeriving
+                        MultiParamTypeClasses
+                        OverloadedStrings
+                        QuasiQuotes
                         RecordWildCards
                         UndecidableInstances
+                        TemplateHaskell
+                        TypeFamilies
 
     other-extensions:   CPP
                         TypeOperators

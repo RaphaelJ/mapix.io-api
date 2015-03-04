@@ -1,26 +1,23 @@
 module Histogram.Compare (
-      DirectIntersec (..), directIntersec,
-    , compareHeterogeneous, comparePartial
-    , compareCrossBinHist1D
+      Intersec, DirectIntersec, CrossIntersec
+    , directIntersec, crossIntersec, intersec
+    , minIntersec, canExceed
     ) where
 
 import Prelude
 
 import Control.Lens
 import Control.Monad.Trans.State.Strict
-import Data.Function
-import Foreign.Storable (Storable)
-import Vision.Histogram (Histogram (..), compareIntersect, index, linearIndex)
-import Vision.Primitive (Z, (:.), DIM1, DIM3, ix3, shapeLength)
+import Vision.Histogram (Histogram, (!), compareIntersect)
+import Vision.Primitive (Shape, ix3)
 
 import qualified Data.Vector          as V
 import qualified Data.Vector.Storable as VS
 
-import Histogram.Config (
-      confCrossBinWeight, confHueBins, confHueSimilarityMatrix
-    )
+import Histogram.Config (confHueSimilarityMatrix, confHistNSats, confHistNVals)
 import Histogram.Type (
-      BinsSimilarity (..), HeterogeneousHistogram (..), PartialHistogram (..)
+      BinsSimilarity (..), HeterogeneousHistogram (..)
+    , Weight
     )
 
 -- Types -----------------------------------------------------------------------
@@ -50,9 +47,6 @@ data CrossIntersec = CrossIntersec {
     , ciGreys       :: Intersec
     } deriving Show
 
-instance Ord CrossIntersec where
-    compare = compare `on` intersec
-
 -- Intersection ----------------------------------------------------------------
 
 -- | Computes the simple (direct-bin) intersection of two histograms.
@@ -68,15 +62,18 @@ directIntersec :: HeterogeneousHistogram -> HeterogeneousHistogram
 directIntersec hist1 hist2 =
     -- TODO: Return 'Nothing' if it can ensure that the intersection will be
     -- smaller than a given minimum score.
-    let intersecOn f = compareIntersect (f hist1) (f hist2)
-    in DirectIntersec (intersecOn hhColors) (intersecOn hhGreys)
+    DirectIntersec (intersecOn hhColors) (intersecOn hhGreys)
+  where
+    intersecOn :: (Shape sh, VS.Storable a, Num a, Ord a) =>
+                  (HeterogeneousHistogram -> Histogram sh a) -> a
+    intersecOn f = compareIntersect (f hist1) (f hist2)
 
 -- | Computes the cross-bin intersection of two histograms, given the already
 -- computed direct-bin intersection.
 --
--- The cross-bin intersection is the weighted sum of the direct-bin
--- intersections of histograms where the bins having a non-nul factor in the
--- similarity matrix have been merged.
+-- The cross-bin intersection is the weighted sum (according to the similarity
+-- matrix) of the direct-bin intersections of histograms where bins having a
+-- non-zero similarity factor have been merged.
 --
 -- i.e. the cross-bin intersection of two histograms H and H' having the
 -- symmetric similarity matrix M is equal to:
@@ -90,17 +87,17 @@ directIntersec hist1 hist2 =
 crossIntersec :: DirectIntersec
               -> HeterogeneousHistogram -> HeterogeneousHistogram
               -> CrossIntersec
-crossIntersec DirectIntersec {..} (HeterogeneousHistogram _ colors1)
-                                  (HeterogeneousHistogram _ colors2) =
+crossIntersec DirectIntersec {..} (HeterogeneousHistogram colors1 _ _)
+                                  (HeterogeneousHistogram colors2 _ _) =
     CrossIntersec diColors crossHues diGreys
   where
     -- Do a cross-bin comparison on the neighboring hues.
-    crossHues = evalState 0 $ do
+    crossHues = flip execState 0 $ do
         -- TODO: Cross color comparison with the neighboring values and
         -- saturations.
         V.forM_ confHueSimilarityMatrix $ \BinsSimilarity {..} ->
-            VS.forM_ (VS.enumFromN 0 nSats) $ \s ->
-                VS.forM_ (VS.enumFromN 0 nVals) $ \v ->
+            VS.forM_ (VS.enumFromN 0 confHistNSats) $ \s ->
+                VS.forM_ (VS.enumFromN 0 confHistNVals) $ \v ->
                     let !bin1Hist1 = colors1 ! ix3 bsBin1 s v
                         !bin2Hist1 = colors1 ! ix3 bsBin2 s v
                         !bin1Hist2 = colors2 ! ix3 bsBin1 s v
@@ -108,8 +105,8 @@ crossIntersec DirectIntersec {..} (HeterogeneousHistogram _ colors1)
                     in id += bsSimilarity * (   diColors
                                               - min bin1Hist1 bin1Hist2
                                               - min bin2Hist1 bin2Hist2
-                                              + min (bin1Hist1 bin2Hist1)
-                                                    (bin1Hist2 bin2Hist2)
+                                              + min (bin1Hist1 + bin2Hist1)
+                                                    (bin1Hist2 + bin2Hist2))
 
 -- | Sums and normalizes the 'CrossIntersec' components to a value between 
 -- 0 (complete miss-match) and 1 (perfect match).
@@ -121,45 +118,44 @@ intersec CrossIntersec {..} =   (ciColors + ciCrossColors) * hueCrossBinFactor
 
 -- | Given the already computed direct intersection between two histograms,
 -- returns the minimal intersection which could be computed with the cross-bin
--- comparison.
+-- intersection.
 --
 -- The minimal score of the cross-bin intersection is the direct intersection
--- times the sum of the weights in the similarity matrix.
+-- times the sum of the weights in the similarity matrix (the intersection of
+-- two merged histogram is at least as large as the intersection of the two
+-- un-merged histograms).
 --
 -- i.e. if the histograms H and H' have the symmetric similarity matrix M,
 -- the minimal weight that a bin will have in the cross-bin intersection will
 -- equal:
 --
 -- @
--- sumWeights = minimum [ sum [ M i j | j <- bins, j > i ]
---                      | i <- bins
---                      ]
+-- sumWeights = sum [ sum [ M i j | j <- bins, j > i ]
+--                  | i <- bins
+--                  ]
 -- @
 --
 -- With a direct-bin intersection @direct@, the cross-bin intersection has the
 -- value @direct * sumWeights@ as infimum.
-minCrossIntersec :: DirectIntersec -> CrossIntersec
-minCrossIntersec DirectIntersec {..} =
-    CrossIntersec diColors minCrossColors diGreys
+minIntersec :: DirectIntersec -> Intersec
+minIntersec DirectIntersec {..} =
+    intersec $ CrossIntersec diColors minCrossColors diGreys
   where
     minCrossColors = diColors * hueCrossBinTotalWeight
 
 -- | Returns 'True' if the first score can exceed the second one once the
--- cross-bin histogram will be computed.
-canExceed :: DirectIntersec -> CrossIntersec -> Bool
-DirectIntersec {..} `canExceed` cross =
-    CrossIntersec diColors maxCrossColors diGreys > cross
+-- complete intersection will be computed.
+canExceed :: DirectIntersec -> Intersec -> Bool
+DirectIntersec {..} `canExceed` score =
+    intersec (CrossIntersec diColors maxCrossColors diGreys) > score
   where
     -- TODO: Use min (sum grey1) (sum grey2) * hueCrossBinTotalWeight to
-    -- estimates the maximum more accordin.
+    -- estimates the maximum more accordingly.
     maxCrossColors = hueCrossBinTotalWeight * (1.0 - diGreys)
 
 -- -----------------------------------------------------------------------------
 
-nHues :: Int
-nHues = VS.length confHueBins
-
--- | The sum of the similarity factors of the similarity matrix.
+-- | The sum of the factors of the similarity matrix.
 hueCrossBinTotalWeight :: Weight
 hueCrossBinTotalWeight = V.sum (V.map bsSimilarity confHueSimilarityMatrix)
 
@@ -170,7 +166,7 @@ hueCrossBinFactor = 1 / (1 + hueCrossBinTotalWeight)
 
 -- -- | Computes the intersection of two histograms.
 -- --
--- -- Returns 'Nothing' if it can ensure that the intersection will be smaller than
+-- -- Returns 'Nothing' if it can ensure that the intersection 2200will be smaller than
 -- -- the given minimum score.
 -- compareHeterogeneous :: HeterogeneousHistogram -> HeterogeneousHistogram
 --                      -> Maybe Weight

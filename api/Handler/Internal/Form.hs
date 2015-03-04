@@ -5,23 +5,23 @@ module Handler.Internal.Form (
 
 import Import
 
-import qualified Control.Exception as E
 import Control.Monad
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson (decodeStrict', encode)
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
 import Data.Conduit (($$), await)
-import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Network.HTTP.Conduit (HttpException, parseUrl, responseBody)
 import Network.HTTP.Client.Conduit (withResponse)
-import qualified Vision.Image as I
 import Text.Parsec (parse)
 import Text.Printf
-import Vision.Image (StorageImage)
+import Vision.Image.Storage.DevIL (StorageImage (..), Autodetect (..), loadBS)
+
+import qualified Control.Exception          as E
+import qualified Data.ByteString            as S
+import qualified Data.ByteString.Lazy       as L
+import qualified Data.Text                  as T
 
 import Handler.Config (confMaxFileSize, confMinScore)
 import ImageIndex (TagExpression, tagExpressionParser)
@@ -54,7 +54,7 @@ data ImageError = UnreadableImage -- ^ Unable to read the image encoding.
 
 -- | Fails if at least one image is unreadable.
 imagesField :: (MonadBaseControl IO m, MonadHandler m, HandlerSite m ~ App)
-            => Field m [I.StorageImage]
+            => Field m [StorageImage]
 imagesField =
     Field {
           fieldParse = parser, fieldView = undefined, fieldEnctype = Multipart
@@ -112,10 +112,9 @@ imagesField =
     readSource source = do
         bs <- runResourceT $ source $$ sinkLbsMaxSize confMaxFileSize
 
-        eImg <- liftIO $ I.loadBS Nothing (S.concat bs)
-
-        case eImg of Left  _   -> throwE UnreadableImage
-                     Right img -> return img
+        case loadBS Autodetect (S.concat bs) of 
+            Left  _   -> throwE UnreadableImage
+            Right img -> return img
 
 -- | Accepts an error message and returns a field which decode the JSON text
 -- field into the corresponding required type.

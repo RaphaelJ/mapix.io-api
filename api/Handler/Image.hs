@@ -6,12 +6,13 @@ module Handler.Image (
 import Import
 
 import Control.Monad
-import qualified Data.Foldable as F
 import Data.Maybe
-import qualified Data.Set as S
 import Network.HTTP.Types.Status (created201, noContent204)
 import System.Random (newStdGen)
-import Vision.Image (StorageImage)
+import Vision.Image.Storage.DevIL (StorageImage)
+
+import qualified Data.Foldable as F
+import qualified Data.Set as S
 
 import Handler.Error (APIError (IndexExhausted), apiFail)
 import Handler.Internal.Form (
@@ -28,8 +29,9 @@ import ImageIndex (
     , getMatchingImages, getTag, getUserIndex, lookupImage, newImage
     , removeImage, runTransaction, touchUserIndex, userIndexSize
     )
-import qualified ImageIndex.Persistent as DB
 import Histogram (fromImages)
+
+import qualified ImageIndex.Persistent as DB
 
 -- | Lists every image of the user.
 getImagesR :: Handler Value
