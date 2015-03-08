@@ -191,11 +191,11 @@ newImageCode key ui@(UserIndex {..}) gen = do
     rand1, rand2 :: Int64
     (rand1, gen')  = random gen
     (rand2, gen'') = random gen'
+    rand           = (C.pack $ show rand1) <> (C.pack $ show rand2)
 
     key' = key <> (C.pack $ T.unpack uiName)
 
-    code = let rand' = (C.pack $ show rand1) <> (C.pack $ show rand2)
-               hmac  = integerDigest $ hmacSha1 key' rand'
+    code = let hmac = integerDigest $ hmacSha1 key' rand
            in ImageCode $ T.pack $ take imageCodeLength $ toBase62 $ hmac
 
     -- | Encodes an integer in base 62 (using letters and numbers).

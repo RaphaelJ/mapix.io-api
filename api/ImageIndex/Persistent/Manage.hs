@@ -12,6 +12,7 @@ import Database.Persist
 import qualified Data.Set as S
 import Database.Persist.Sql
 
+import Histogram (ResizedImage)
 import ImageIndex.Persistent.Model
 import ImageIndex.Type (IndexedImage (..), TagPath, UserName)
 import ImageIndex.Tag (tagPath)
@@ -33,11 +34,14 @@ getUser username = do
 
 -- Images ----------------------------------------------------------------------
 
--- | Inserts the image and its tags to the database.
-addImage :: MonadIO m => UserId -> IndexedImage -> SqlPersistT m (Entity Image)
-addImage userId IndexedImage {..} = do
+-- | Inserts the image, its tags and its sources images to the database.
+addImage :: MonadIO m => UserId -> IndexedImage -> [ResizedImage]
+         -> SqlPersistT m (Entity Image)
+addImage userId IndexedImage {..} originals = do
     let img = Image iiCode userId iiName iiHist
     imgId <- insert img
+
+    insertMany_ $ map (Original imgId) originals
 
     -- Condition needed because of a bug in persistent when given an empty list.
     when (not $ S.null iiTags) $ do

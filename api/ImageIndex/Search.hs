@@ -34,10 +34,13 @@ search !nResults !minScore imgs !hist =
 
         -- Removes images whose cross-bin intersection score couldn't exceed
         -- minScore or the nResults-th direct-bin intersection score.
-        !minDirectScore = minIntersec $ srScore $ directScores !! (nResults - 1)
-        !minScore'      = max minDirectScore minScore
-        directScores'   = takeWhile ((`canExceed` minScore') . srScore)
-                                    directScores
+        !minScore' | S.size imgs > nResults =
+                        let lastScore = directScores !! (nResults - 1)
+                        in max minScore (minIntersec (srScore lastScore))
+                   | otherwise              = minScore
+
+        directScores' = takeWhile ((`canExceed` minScore') . srScore)
+                                  directScores
 
         crossScores = [ direct { srScore = score }
                       | direct@(SearchResult {..}) <- directScores'

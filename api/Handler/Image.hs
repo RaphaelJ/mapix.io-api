@@ -9,7 +9,6 @@ import Control.Monad
 import Data.Maybe
 import Network.HTTP.Types.Status (created201, noContent204)
 import System.Random (newStdGen)
-import Vision.Image.Storage.DevIL (StorageImage)
 
 import qualified Data.Foldable as F
 import qualified Data.Set as S
@@ -29,7 +28,7 @@ import ImageIndex (
     , getMatchingImages, getTag, getUserIndex, lookupImage, newImage
     , removeImage, runTransaction, touchUserIndex, userIndexSize
     )
-import Histogram (fromImages)
+import Histogram (ResizedImage, fromImages)
 
 import qualified ImageIndex.Persistent as DB
 
@@ -50,7 +49,7 @@ getImagesR = do
 
 data NewImage = NewImage {
       niName       :: Maybe Text
-    , niImages     :: [StorageImage]
+    , niImages     :: [ResizedImage]
     , niTags       :: Maybe [TagPath]
     , niIgnoreBack :: Bool
     , niIgnoreSkin :: Bool
@@ -99,7 +98,7 @@ postImagesR = do
         case mImg of
             Just img -> do
                 Entity userId _ <- DB.getUser username
-                _ <- DB.addImage userId img
+                _ <- DB.addImage userId img niImages
                 return $ Just img
             Nothing  -> return Nothing
 
@@ -111,7 +110,7 @@ postImagesR = do
         Nothing  -> apiFail IndexExhausted
   where
     newImageForm = NewImage <$> iopt textField     "name"
-                            <*> ireq imagesField   "image"
+                            <*> ireq imagesField   "images"
                             <*> iopt tagListField  "tags"
                             <*> ireq checkBoxField "ignore_background"
                             <*> ireq checkBoxField "ignore_skin"

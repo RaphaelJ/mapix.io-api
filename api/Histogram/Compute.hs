@@ -1,6 +1,6 @@
 -- | Functions to create an histogram from an image or a list of colors.
 module Histogram.Compute (
-      Mask
+      ResizedImage (..), Mask
     , fromImages, fromImage, fromColors
     , resize
     , average, normalize, alphaMask, backgroundMask
@@ -17,19 +17,21 @@ import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Ratio
+import Data.Serialize (Serialize)
+import Database.Persist.Sql (PersistFieldSql)
 import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
 import Vision.Image (
       Image, ImagePixel, ImageChannel, FromFunction, FromFunctionPixel
     , Interpolable
     , DelayedMask, Manifest, MutableManifest
-    , Grey, GreyPixel, HSV, HSVPixel, RGBA, RGB
+    , Grey, GreyPixel, HSV, HSVPixel, RGBA
     )
 import Vision.Image.Storage.DevIL (StorageImage (..))
-
 import Vision.Primitive (
       Z (..), (:.) (..), Point, Size, ix2, shapeLength, toLinearIndex
     )
+import Yesod (PersistField)
 
 import qualified Data.Vector.Storable   as V
 import qualified Vision.Histogram       as H
@@ -40,29 +42,31 @@ import Histogram.Color (
     , toColorHistPixel, toGreyHistPixel, hsvToBin, colorsHistSize, greysHistSize
     )
 import Histogram.Config (confMaxImageSize)
+import Histogram.Serialize ()
 import Histogram.Type (HeterogeneousHistogram (..), heterogeneousHistogram)
+
+newtype ResizedImage = ResizedImage { riImage :: StorageImage }
+    deriving (Serialize, PersistField, PersistFieldSql)
 
 type Mask = Manifest Bool
 
 -- | Builds an histogram from a list of images.
 --
 -- Returns a normalized histogram.
-fromImages :: Bool -> Bool -> [StorageImage] -> HeterogeneousHistogram
+fromImages :: Bool -> Bool -> [ResizedImage] -> HeterogeneousHistogram
 fromImages !ignoreBack !ignoreSkin =   average
                                      . map (fromImage ignoreBack ignoreSkin)
 
 -- | Builds an histogram from an image.
-fromImage :: Bool -> Bool -> StorageImage -> HeterogeneousHistogram
-fromImage !ignoreBack !ignoreSkin !io =
-    let !io' = resize io
-
-        hsv :: HSV
-        !hsv = I.convert (I.convert io' :: RGB)
+fromImage :: Bool -> Bool -> ResizedImage -> HeterogeneousHistogram
+fromImage !ignoreBack !ignoreSkin !(ResizedImage resized) =
+    let hsv :: HSV
+        !hsv = I.convert resized
 
         masks = catMaybes [
-              case io' of RGBAStorage rgba -> Just $! alphaMask rgba
-                          _                -> Nothing
-            , if ignoreBack then Just $! backgroundMask io'
+              case resized of RGBAStorage rgba -> Just $! alphaMask rgba
+                              _                -> Nothing
+            , if ignoreBack then Just $! backgroundMask resized
                             else Nothing
             ]
     in if null masks
@@ -123,13 +127,13 @@ fromColors xs =
 -- -----------------------------------------------------------------------------
 
 -- | Resizes the original image if larger than the maximum image size.
-resize :: StorageImage -> StorageImage
-resize io | h <= confMaxImageSize && w <= confMaxImageSize = io
+resize :: StorageImage -> ResizedImage
+resize io | h <= confMaxImageSize && w <= confMaxImageSize = ResizedImage io
           | otherwise                                      =
                 let !ratio   = max h w % confMaxImageSize
                     !newSize = ix2 (round $ fromIntegral h / ratio)
                                    (round $ fromIntegral w / ratio)
-                in case io of
+                in ResizedImage $! case io of
                         GreyStorage img -> GreyStorage $! resize' newSize img
                         RGBAStorage img -> RGBAStorage $! resize' newSize img
                         RGBStorage  img -> RGBStorage  $! resize' newSize img

@@ -16,7 +16,7 @@ import Network.HTTP.Conduit (HttpException, parseUrl, responseBody)
 import Network.HTTP.Client.Conduit (withResponse)
 import Text.Parsec (parse)
 import Text.Printf
-import Vision.Image.Storage.DevIL (StorageImage (..), Autodetect (..), loadBS)
+import Vision.Image.Storage.DevIL (Autodetect (..), loadBS)
 
 import qualified Control.Exception          as E
 import qualified Data.ByteString            as S
@@ -24,6 +24,7 @@ import qualified Data.ByteString.Lazy       as L
 import qualified Data.Text                  as T
 
 import Handler.Config (confMaxFileSize, confMinScore)
+import Histogram (ResizedImage, resize)
 import ImageIndex (TagExpression, tagExpressionParser)
 
 -- Forms -----------------------------------------------------------------------
@@ -33,14 +34,14 @@ filterForm :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
 filterForm = iopt tagExpressionField "filter"
 
 data ImagesForm = ImagesForm {
-      ifImages     :: [StorageImage]
+      ifImages     :: [ResizedImage]
     , ifIgnoreBack :: Bool
     , ifIgnoreSkin :: Bool
     }
 
 imagesForm :: (MonadBaseControl IO m, MonadHandler m, HandlerSite m ~ App)
            => FormInput m ImagesForm
-imagesForm = ImagesForm <$> ireq imagesField   "image"
+imagesForm = ImagesForm <$> ireq imagesField   "images"
                         <*> ireq checkBoxField "ignore_background"
                         <*> ireq checkBoxField "ignore_skin"
 
@@ -53,8 +54,10 @@ data ImageError = UnreadableImage -- ^ Unable to read the image encoding.
                 | OtherError
 
 -- | Fails if at least one image is unreadable.
+--
+-- Resizes the image before returning.
 imagesField :: (MonadBaseControl IO m, MonadHandler m, HandlerSite m ~ App)
-            => Field m [StorageImage]
+            => Field m [ResizedImage]
 imagesField =
     Field {
           fieldParse = parser, fieldView = undefined, fieldEnctype = Multipart
@@ -112,9 +115,9 @@ imagesField =
     readSource source = do
         bs <- runResourceT $ source $$ sinkLbsMaxSize confMaxFileSize
 
-        case loadBS Autodetect (S.concat bs) of 
+        case loadBS Autodetect (S.concat bs) of
             Left  _   -> throwE UnreadableImage
-            Right img -> return img
+            Right img -> return $! resize img
 
 -- | Accepts an error message and returns a field which decode the JSON text
 -- field into the corresponding required type.

@@ -5,7 +5,7 @@ import Prelude
 import Data.Text (Text)
 import Yesod.Persist
 
-import Histogram ()
+import Histogram (ResizedImage)
 import ImageIndex.Instance ()
 import ImageIndex.Type (IndexedHistogram, ImageCode, TagPath, UserName)
 
@@ -26,6 +26,10 @@ Image
 
     UniqueImageCodeOwner        owner code
     deriving Show
+
+Original
+    image                       ImageId
+    original                    ResizedImage
 
 ImageTag
     owner                       UserId
