@@ -1,29 +1,30 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- | Provides instances for the types from 'ImageIndex.Type'.
-module ImageIndex.Instance () where
+-- | Provides instances for the types from 'ObjectIndex.Type'.
+module ObjectIndex.Instance () where
 
 import Prelude
 
 import Control.Arrow
 import Control.Monad
-import qualified Data.Text as T
 import Database.Persist.Sql (PersistFieldSql (..))
 import Text.Parsec (parse)
 import Text.Printf
 import Yesod
 
-import ImageIndex.Type
-import ImageIndex.Tag (tagPathParser, tagPath2Text)
+import qualified Data.Text as T
 
-instance Show ImageCode where
-    show (ImageCode txt) = show txt
+import ObjectIndex.Type
+import ObjectIndex.Tag (tagPathParser, tagPath2Text)
 
-instance Read ImageCode where
-    readsPrec n str = map (first ImageCode) (readsPrec n str)
+instance Show ObjectCode where
+    show (ObjectCode txt) = show txt
 
-instance PersistFieldSql ImageCode where
-    sqlType action = sqlType (icValue `liftM` action)
+instance Read ObjectCode where
+    readsPrec n str = map (first ObjectCode) (readsPrec n str)
+
+instance PersistFieldSql ObjectCode where
+    sqlType action = sqlType (ocValue `liftM` action)
 
 instance Show TagPath where
     show = T.unpack . tagPath2Text

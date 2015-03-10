@@ -30,13 +30,13 @@ import ObjectIndex (
 import Histogram (Color (..), toColors)
 
 instance ToJSON IndexedObject where
-    toJSON IndexedImage {..} =
+    toJSON IndexedObject {..} =
         object $ [
-              "id"   .= iiCode
-            , "tags" .= map tagPath (S.toList iiTags)
+              "id"   .= ioCode
+            , "tags" .= map tagPath (S.toList ioTags)
             ] ++ mName
       where
-        mName = maybe [] (\name -> [ "name" .= name ]) iiName
+        mName = maybe [] (\name -> [ "name" .= name ]) ioName
 
 instance ToJSON IndexedObjectWithColors where
     toJSON (IndexedObjectWithColors obj) =

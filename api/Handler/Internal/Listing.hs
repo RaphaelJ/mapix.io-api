@@ -13,14 +13,14 @@ import Yesod hiding (count)
 
 import Handler.Config (confDefaultCount, confMaxCount)
 
-data Listing objs = Listing {
+data Listing a = Listing {
       lTotalCount :: Int
     , lOffset     :: Int
     , lCount      :: Int
-    , lObjects    :: objs
+    , lObjects    :: [a]
     }
 
-instance (Traversable objs, ToJSON objs) =>  => ToJSON (Listing objs) where
+instance ToJSON a => ToJSON (Listing a) where
     toJSON Listing {..} = object [ "total_count" .= lTotalCount
                                  , "offset"      .= lOffset
                                  , "count"       .= lCount

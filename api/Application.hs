@@ -32,12 +32,12 @@ import Yesod.Default.Main
 
 import Settings
 
-import Handler.Image
+import Handler.Object
 import Handler.Search
 import Handler.Tag
 
-import ImageIndex (newIndex)
-import ImageIndex.Persistent (migrateIndex, restoreIndex)
+import ObjectIndex (newIndex)
+import ObjectIndex.Persistent (migrateIndex, restoreIndex)
 
 mkYesodDispatch "App" resourcesApp
 

@@ -1,21 +1,22 @@
-module ImageIndex.Tag (
+module ObjectIndex.Tag (
       tagPath, tagPathParser, tagPath2Text
     -- * Conditional tag expressions.
-    , tagExpressionParser, getMatchingImages
+    , tagExpressionParser, getMatchingObjects
     ) where
 
 import Prelude
 
 import Control.Applicative ((<$>), (<*), (<*>))
 import Data.Set (Set)
-import qualified Data.Set as S
 import Data.Text (Text)
-import qualified Data.Text as T
 import Text.Parsec
 import Text.Parsec.Text
 
-import ImageIndex.Manage (getTagImages, lookupTag)
-import ImageIndex.Type
+import qualified Data.Set   as S
+import qualified Data.Text  as T
+
+import ObjectIndex.Manage (getTagObjects, lookupTag)
+import ObjectIndex.Type
 
 -- | Returns the full name of the tag (i.e. @theme:beach@).
 tagPath :: Tag -> TagPath
@@ -58,20 +59,20 @@ tagExpressionParser =
         <|> between (char '(' >> spaces) (char ')' >> spaces) orExpr
         <|> (TagName <$> (tagPathParser <* spaces))
 
--- | Searches for images in the user's index which match the given tag
--- expression. If no 'TagExpression' is given, return the 'RootTag' images.
+-- | Searches for objects in the user's index which match the given tag
+-- expression. If no 'TagExpression' is given, return the 'RootTag' objects.
 -- Returns an empty set if the tag doesn't exist.
-getMatchingImages :: UserIndex -> Maybe TagExpression
-                  -> IndexSTM (Set IndexedImage)
-getMatchingImages ui Nothing     = getTagImages (uiRootTag ui)
-getMatchingImages ui (Just expr) =
+getMatchingObjects :: UserIndex -> Maybe TagExpression
+                  -> IndexSTM (Set IndexedObject)
+getMatchingObjects ui Nothing     = getTagObjects (uiRootTag ui)
+getMatchingObjects ui (Just expr) =
     go expr
   where
     go (TagName path) = do
         mTag <- lookupTag ui path
-        case mTag of Just tag -> getTagImages tag
+        case mTag of Just tag -> getTagObjects tag
                      Nothing  -> return S.empty
-    go (TagNot expr1) = S.difference <$> getTagImages (uiRootTag ui)
+    go (TagNot expr1) = S.difference <$> getTagObjects (uiRootTag ui)
                                      <*> go expr1
     go (TagAnd expr1 expr2) = S.intersection <$> go expr1 <*> go expr2
     go (TagOr  expr1 expr2) = S.union        <$> go expr1 <*> go expr2

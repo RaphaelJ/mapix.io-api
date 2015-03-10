@@ -1,4 +1,4 @@
-module ImageIndex.Type where
+module ObjectIndex.Type where
 
 import Prelude
 
@@ -18,39 +18,39 @@ import Yesod (PathPiece, ToJSON)
 
 import Histogram (HeterogeneousHistogram)
 
--- | Runs the 'ImageIndex' transaction inside a reader monad as some actions
+-- | Runs the 'ObjectIndex' transaction inside a reader monad as some actions
 -- need to known at what time the transaction was initiated.
 type IndexSTM a = ReaderT UTCTime STM a
 
--- | ImageCodes are unique randomly generated identifiers used to identify
--- images.
+-- | 'ObjectCode's are unique randomly generated identifiers used to identify
+-- objects.
 --
--- An 'ImageCode' is only unique for an user.
-newtype ImageCode = ImageCode { icValue :: Text }
+-- An 'Object' is only unique for an user.
+newtype ObjectCode = ObjectCode { ocValue :: Text }
     deriving (Eq, Ord, IsString, PersistField, PathPiece, ToJSON)
 
-data ImageIndex = ImageIndex {
-      iiUsers     :: !(TVar (Map UserName UserIndex))
+data ObjectIndex = ObjectIndex {
+      oiUsers     :: !(TVar (Map UserName UserIndex))
     -- Here we define a concurrent double linked list which implements a Least
-    -- Recent Call queue for user indexes. Indexes are kept sorted by descending
-    -- last usage order so we can quickly remove indexes which haven't been used
-    -- for a long time.
-    , iiLRCFirst      :: !(TVar (Maybe UserIndex)) -- ^ Most recent call.
-    , iiLRCLast   :: !(TVar (Maybe UserIndex)) -- ^ Least recent call.
+    -- Recently Used queue for user indexes. Indexes are kept sorted by
+    -- descending last usage time so we can quickly remove indexes which haven't
+    -- been used for a long time.
+    , oiLRUFirst  :: !(TVar (Maybe UserIndex)) -- ^ Most recent call.
+    , oiLRULast   :: !(TVar (Maybe UserIndex)) -- ^ Least recent call.
     }
 
--- Each API user has its own index. Index are used to search for image by tag or
--- by image code.
+-- Each API user has its own index. Index are used to search for objects by tag
+-- or by object code.
 
 type UserName = Text
 
 data UserIndex = UserIndex {
       uiName    :: !UserName
-    , uiImages  :: !(TVar (Map ImageCode IndexedImage))
+    , uiObjects :: !(TVar (Map ObjectCode IndexedObject))
     , uiRootTag :: !Tag
-    , uiLRCTime :: !(TVar UTCTime)           -- ^ Last time called.
-    , uiLRCPrev :: !(TVar (Maybe UserIndex)) -- ^ More recently called user.
-    , uiLRCNext :: !(TVar (Maybe UserIndex)) -- ^ Less recently called user.
+    , uiLRUTime :: !(TVar UTCTime)           -- ^ Last time called.
+    , uiLRUPrev :: !(TVar (Maybe UserIndex)) -- ^ More recently called user.
+    , uiLRUNext :: !(TVar (Maybe UserIndex)) -- ^ Less recently called user.
     }
 
 newtype TagPath = TagPath { tpNodes :: [Text] }
@@ -62,7 +62,7 @@ instance PersistFieldSql TagPath where
 -- Here we define two kinds of tags.
 -- The RootTag is used in the UserIndex to indicate the "catch all" tag. This
 -- tag doesn't have any parent and has no name (it catches the empty tag
--- string). It contains only images which aren't registered to any tag.
+-- string). It contains only objects which aren't registered to any tag.
 -- The SubTag is used for "real" tags of the hierarchy.
 
 data TagType = RootTag | SubTag !Text !Tag -- ^ Tag\'s name and sub-tag.
@@ -71,8 +71,8 @@ data TagType = RootTag | SubTag !Text !Tag -- ^ Tag\'s name and sub-tag.
 data Tag = Tag {
       tType    :: !TagType
     , tSubTags :: !(TVar (Map Text Tag))
-    -- | Only contains images which are not in sub-tags.
-    , tImages  :: !(TVar (Set IndexedImage))
+    -- | Only contains objects which are not in sub-tags.
+    , tObjects :: !(TVar (Set IndexedObject))
     }
 
 instance Eq Tag where
@@ -87,11 +87,11 @@ data TagExpression = TagName TagPath
                    | TagAnd  TagExpression TagExpression
                    | TagOr   TagExpression TagExpression
 
-data IndexedImage = IndexedImage {
-      iiCode :: !ImageCode
-    , iiName :: !(Maybe Text)
-    , iiTags :: !(Set Tag)
-    , iiHist :: !IndexedHistogram
+data IndexedObject = IndexedObject {
+      ioCode :: !ObjectCode
+    , ioName :: !(Maybe Text)
+    , ioTags :: !(Set Tag)
+    , ioHist :: !IndexedHistogram
     } deriving (Eq, Ord)
 
 type IndexedHistogram = HeterogeneousHistogram

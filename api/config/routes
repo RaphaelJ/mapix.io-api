@@ -1,5 +1,5 @@
-/images                     ImagesR              GET POST DELETE
-/images/#ImageCode          ImageR               GET DELETE
+/objects                    ObjectsR             GET POST DELETE
+/objects/#ObjectCode        ObjectR              GET DELETE
 
 /search-by-colors           ColorSearchR         POST
 /search-by-image            ImageSearchR         POST

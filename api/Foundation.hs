@@ -9,11 +9,12 @@ import Yesod
 import Yesod.Core.Types (Logger)
 import Yesod.Default.Config
 
-import qualified Handler.Error as E
-import ImageIndex (ImageIndex, ImageCode, TagPath)
+import ObjectIndex (ObjectIndex, ObjectCode, TagPath)
 import Settings (Extra (..))
-import qualified Settings
 import Settings.Development (development)
+
+import qualified Handler.Error as E
+import qualified Settings
 
 -- | The site argument for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -26,7 +27,7 @@ data App = App {
     , persistConfig :: Settings.PersistConf
     , appLogger     :: Logger
     , encryptKey    :: B.ByteString
-    , imageIndex    :: ImageIndex
+    , objectIndex   :: ObjectIndex
     }
 
 mkYesodData "App" $(parseRoutesFile "config/routes")

@@ -16,7 +16,7 @@ library
                         Foundation
                         Handler.Config
                         Handler.Error
-                        Handler.Image
+                        Handler.Object
                         Handler.Search
                         Handler.Tag
                         Handler.Internal.Form
@@ -32,16 +32,16 @@ library
                         Histogram.Config
                         Histogram.Serialize
                         Histogram.Type
-                        ImageIndex
-                        ImageIndex.Instance
-                        ImageIndex.Manage
-                        ImageIndex.Persistent
-                        ImageIndex.Persistent.Manage
-                        ImageIndex.Persistent.Model
-                        ImageIndex.Persistent.Restore
-                        ImageIndex.Search
-                        ImageIndex.Tag
-                        ImageIndex.Type
+                        ObjectIndex
+                        ObjectIndex.Instance
+                        ObjectIndex.Manage
+                        ObjectIndex.Persistent
+                        ObjectIndex.Persistent.Manage
+                        ObjectIndex.Persistent.Model
+                        ObjectIndex.Persistent.Restore
+                        ObjectIndex.Search
+                        ObjectIndex.Tag
+                        ObjectIndex.Type
                         Import
                         Settings
                         Settings.Development

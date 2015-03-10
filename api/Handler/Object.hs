@@ -22,7 +22,7 @@ import Handler.Internal.Listing (listing, listingForm)
 import Handler.Internal.Mashape (
       getMashapeHeaders, maxIndexSize, mhSubscription, mhUser
     )
-import Handler.Internal.Type (ObjectWithColors (..))
+import Handler.Internal.Type (IndexedObjectWithColors (..))
 import Histogram (ResizedImage, fromImages)
 import ObjectIndex (
       ObjectCode, IndexedObject (..), TagPath
@@ -39,7 +39,7 @@ getObjectsR = do
     tagExpr       <- runInputGet filterForm
 
     username <- mhUser <$> getMashapeHeaders
-    ii       <- imageIndex <$> getYesod
+    ii       <- objectIndex <$> getYesod
 
     objs <- runTransaction $ do
         ui <- getUserIndex ii username
@@ -59,8 +59,8 @@ data NewObject = NewObject {
 --
 -- Returns a '201 Created' status on success. Fails with a '400 Bad request'
 -- with an invalid query or a '429 Too Many Requests'.
-postImagesR :: Handler Value
-postImagesR = do
+postObjectsR :: Handler Value
+postObjectsR = do
     NewObject {..} <- runInputPost newObjectForm
 
     let !hist = fromImages noIgnoreBack noIgnoreSkin noImages
@@ -78,8 +78,8 @@ postImagesR = do
 
     -- Tries to add the object. Returns Nothing if the index has too
     -- many objects.
-    mImg <- runDB $ do
-        mImg <- runTransaction $ do
+    mObj <- runDB $ do
+        mObj <- runTransaction $ do
             ui   <- getUserIndex oi username
             size <- userIndexSize ui
 
@@ -106,7 +106,7 @@ postImagesR = do
         Just obj -> do
             url <- getUrlRender <*> pure (ObjectR $! ioCode obj)
             addHeader "Location" url
-            sendResponseStatus created201 (toJSON $ ObjectWithColors obj)
+            sendResponseStatus created201 (toJSON $ IndexedObjectWithColors obj)
         Nothing  -> apiFail IndexExhausted
   where
     newObjectForm = NewObject <$> iopt textField     "name"
@@ -129,7 +129,7 @@ deleteObjectsR = do
 
     runDB $ do
         objs <- runTransaction $ do
-            ui   <- getUserIndex ii username
+            ui   <- getUserIndex oi username
             objs <- getMatchingObjects ui tagExpr
             F.mapM_ (removeObject ui) objs
             return objs
@@ -146,13 +146,13 @@ deleteObjectsR = do
 getObjectR :: ObjectCode -> Handler Value
 getObjectR code = do
     username    <- mhUser <$> getMashapeHeaders
-    ii          <- imageIndex <$> getYesod
+    oi          <- objectIndex <$> getYesod
 
     mObj <- runTransaction $ do
-        ui <- getUserObject ii username
+        ui <- getUserIndex oi username
         lookupObject ui code
 
-    case mObj of Just obj -> returnJson $ ObjectWithColors obj
+    case mObj of Just obj -> returnJson $ IndexedObjectWithColors obj
                  Nothing  -> notFound
 
 -- | Returns a '204 No content' on success. Fails with a '404 Not found' error
@@ -173,7 +173,7 @@ deleteObjectR code = do
             return mObj
 
         case mObj of
-            Just mObj -> do
+            Just obj -> do
                 Entity userId _ <- DB.getUser username
                 DB.removeObject userId obj
                 return True

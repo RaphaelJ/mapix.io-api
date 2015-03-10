@@ -55,7 +55,7 @@ search' hist = do
         let indexIsFull = maybe False (size >) maxSize
 
         if indexIsFull then return Nothing
-                       else do touchUserIndex ii ui
+                       else do touchUserIndex oi ui
                                Just <$> getMatchingObjects ui tagExpr
 
     case mObjs of

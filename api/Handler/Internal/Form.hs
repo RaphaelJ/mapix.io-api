@@ -25,7 +25,7 @@ import qualified Data.Text                  as T
 
 import Handler.Config (confMaxFileSize, confMinScore)
 import Histogram (ResizedImage, resize)
-import ImageIndex (TagExpression, tagExpressionParser)
+import ObjectIndex (TagExpression, tagExpressionParser)
 
 -- Forms -----------------------------------------------------------------------
 
