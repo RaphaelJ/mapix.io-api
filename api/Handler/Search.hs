@@ -18,9 +18,9 @@ import Handler.Internal.Mashape (
     )
 import Handler.Internal.Json ()
 import Histogram (fromImages, fromColors)
-import ImageIndex (
+import ObjectIndex (
       IndexedHistogram
-    , getMatchingImages, getUserIndex, runTransaction, search, touchUserIndex
+    , getMatchingObjects, getUserIndex, runTransaction, search, touchUserIndex
     , userIndexSize
     )
 
@@ -46,25 +46,25 @@ search' hist = do
     let username = mhUser headers
         maxSize  = maxIndexSize $ mhSubscription headers
 
-    ii      <- imageIndex <$> getYesod
+    oi <- objectIndex <$> getYesod
 
-    mImgs <- runTransaction $ do
-        ui   <- getUserIndex ii username
+    mObjs <- runTransaction $ do
+        ui   <- getUserIndex oi username
         size <- userIndexSize ui
 
         let indexIsFull = maybe False (size >) maxSize
 
         if indexIsFull then return Nothing
                        else do touchUserIndex ii ui
-                               Just <$> getMatchingImages ui tagExpr
+                               Just <$> getMatchingObjects ui tagExpr
 
-    case mImgs of
-        Just imgs ->
+    case mObjs of
+        Just objs ->
             let !offset    = fromMaybe 0 (lfOffset listingParams)
                 !count     = maybe confDefaultCount (min confMaxCount)
                                    (lfCount listingParams)
                 !nResults  = offset + count
                 !minScore' = fromMaybe confDefaultMinScore minScore
-                results    = search nResults minScore' imgs hist
+                results    = search nResults minScore' objs hist
             in returnJson $ listing listingParams Nothing results
         Nothing   -> apiFail IndexExhausted

@@ -9,12 +9,12 @@ import Network.HTTP.Types.Status (noContent204)
 import Handler.Internal.Mashape (getMashapeHeaders, mhUser)
 import Handler.Internal.Json ()
 import Handler.Internal.Type (StaticTag (..))
-import ImageIndex (
+import ObjectIndex (
       IndexSTM, Tag (..), TagPath
     , getUserIndex, liftSTM, lookupTag, removeTag, runTransaction
     , uiRootTag
     )
-import qualified ImageIndex.Persistent as DB
+import qualified ObjectIndex.Persistent as DB
 
 -- Handlers --------------------------------------------------------------------
 
@@ -22,40 +22,42 @@ import qualified ImageIndex.Persistent as DB
 getTagsR :: Handler Value
 getTagsR = do
     username <- mhUser <$> getMashapeHeaders
-    ii       <- imageIndex <$> getYesod
+    oi       <- objectIndex <$> getYesod
 
     rootTag <- runTransaction $ do
-        ui <- getUserIndex ii username
+        ui <- getUserIndex oi username
         getStaticTag $ uiRootTag ui
 
     returnJson rootTag
 
--- | Returns the tag and its sub-tags. Fails with a '404 Not Found' error if the
--- tag doesn't exist.
+-- | Returns the tag and its sub-tags.
+--
+-- Fails with a '404 Not Found' error if the tag doesn't exist.
 getTagR :: TagPath -> Handler Value
 getTagR path = do
     username <- mhUser <$> getMashapeHeaders
-    ii       <- imageIndex <$> getYesod
+    oi       <- objectIndex <$> getYesod
 
     mTag <- runTransaction $ do
-        ui   <- getUserIndex ii username
+        ui   <- getUserIndex oi username
         mTag <- lookupTag ui path
         case mTag of Just tag -> Just <$> getStaticTag tag
                      Nothing  -> return Nothing
 
     maybe notFound returnJson mTag
 
--- | Removes this tag and its subtags without removing the images. Returns a
--- '204 No content' on success. Fails with a '404 Not Found' error if the tag
--- doesn't exist.
+-- | Removes this tag and its subtags without removing the objects.
+--
+-- Returns a '204 No content' on success. Fails with a '404 Not Found' error if
+-- the tag doesn't exist.
 deleteTagR :: TagPath -> Handler Value
 deleteTagR path = do
     username    <- mhUser <$> getMashapeHeaders
-    ii          <- imageIndex <$> getYesod
+    oi          <- objectIndex <$> getYesod
 
     exists <- runDB $ do
         exists <- runTransaction $ do
-            ui <- getUserIndex ii username
+            ui <- getUserIndex oi username
             mTag <- lookupTag ui path
             case mTag of Nothing  -> return False
                          Just tag -> removeTag ui tag >> return True

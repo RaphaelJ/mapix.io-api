@@ -46,7 +46,7 @@ errorMessage (MethodNotAllowed method) =
 errorMessage InvalidImage =
     Just "Unable to read the image format"
 errorMessage IndexExhausted =
-    Just "Your index has too many images"
+    Just "Your index has too many objects"
 errorMessage (InternalServerError msg) =
     Just $ "An unexpected error occurred during the execution of your request: "
            <> msg

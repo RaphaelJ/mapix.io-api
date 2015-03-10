@@ -23,13 +23,13 @@ import Yesod.Core.Json
 
 import Handler.Config (confDefaultMinScore)
 import Handler.Internal.Type
-import ImageIndex (
-      IndexedImage (..), TagPath (..), TagType (..), SearchResult (..)
+import ObjectIndex (
+      IndexedObject (..), TagPath (..), TagType (..), SearchResult (..)
     , tagPath, tagPath2Text, tagPathParser
     )
 import Histogram (Color (..), toColors)
 
-instance ToJSON IndexedImage where
+instance ToJSON IndexedObject where
     toJSON IndexedImage {..} =
         object $ [
               "id"   .= iiCode
@@ -38,11 +38,11 @@ instance ToJSON IndexedImage where
       where
         mName = maybe [] (\name -> [ "name" .= name ]) iiName
 
-instance ToJSON ImageWithColors where
-    toJSON (ImageWithColors img) =
-        let Object imgJson = toJSON img
-            colors         = toColors (iiHist img) confDefaultMinScore
-        in Object $! H.insert "colors" (toJSON colors) imgJson
+instance ToJSON IndexedObjectWithColors where
+    toJSON (IndexedObjectWithColors obj) =
+        let Object objJson = toJSON obj
+            colors         = toColors (ioHist obj) confDefaultMinScore
+        in Object $! H.insert "colors" (toJSON colors) objJson
 
 instance ToJSON Color where
     toJSON (Color (RGBPixel r g b) w) =
@@ -85,9 +85,9 @@ instance FromJSON Color where
     parseJSON _          = mzero
 
 instance ToJSON s => ToJSON (SearchResult s) where
-    toJSON (SearchResult img score) =
-        object [ "image" .= img
-               , "score" .= score ]
+    toJSON (SearchResult obj score) =
+        object [ "object" .= obj
+               , "score"  .= score ]
 
 instance ToJSON StaticTag where
     toJSON (StaticTag typ subs) =
