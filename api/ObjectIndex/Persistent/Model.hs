@@ -22,21 +22,14 @@ Object
     code                        ObjectCode
     owner                       UserId
     name                        Text Maybe
+    tags                        [TagPath]
     histogram                   IndexedHistogram
 
     UniqueObjectOwnerCode       owner code
     deriving Show
 
--- Raw images which have been used to compute the histograms.
+-- Raw images which have been used to compute the object histogram.
 Image
     object                      ObjectId
     image                       ResizedImage
-
-ObjectTag
-    owner                       UserId
-    object                      ObjectId
-    path                        TagPath
-
-    UniqueObjectTagOwnerObjectPath owner object path
-    deriving Show
 |]

@@ -10,8 +10,8 @@ import Data.Maybe
 import Network.HTTP.Types.Status (created201, noContent204)
 import System.Random (newStdGen)
 
-import qualified Data.Foldable as F
-import qualified Data.Set as S
+import qualified Data.Foldable  as F
+import qualified Data.Set       as S
 
 import Handler.Error (APIError (IndexExhausted), apiFail)
 import Handler.Internal.Form (
@@ -89,7 +89,8 @@ postObjectsR = do
                 then return Nothing
                 else do
                     tags     <- mapM (getTag ui) (fromMaybe [] noTags)
-                    (obj, _) <- newObject key ui gen noName tags hist
+                    (obj, _) <- newObject key ui gen noName (S.fromList tags)
+                                          hist
                     touchUserIndex oi ui
                     return $! Just obj
 
@@ -111,11 +112,11 @@ postObjectsR = do
   where
     newObjectForm = NewObject <$> iopt textField     "name"
                               <*> ireq imagesField   "images"
-                              <*> iopt tagListField  "tags"
+                              <*> iopt tagsField     "tags"
                               <*> ireq checkBoxField "ignore_background"
                               <*> ireq checkBoxField "ignore_skin"
 
-    tagListField = jsonField "Invalid tag list"
+    tagsField = jsonField "Invalid tag list"
 
 -- | Deletes every object matching the (optional) tag expression.
 --

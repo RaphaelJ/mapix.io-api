@@ -19,8 +19,8 @@ import Text.Printf
 import Vision.Image.Storage.DevIL (Autodetect (..), loadBS)
 
 import qualified Control.Exception          as E
-import qualified Data.ByteString            as S
-import qualified Data.ByteString.Lazy       as L
+import qualified Data.ByteString            as BS
+import qualified Data.ByteString.Lazy       as BL
 import qualified Data.Text                  as T
 
 import Handler.Config (confMaxFileSize, confMinScore)
@@ -108,14 +108,14 @@ imagesField =
             mBs <- await
             case mBs of
                 Nothing -> return []
-                Just bs -> let len = S.length bs
+                Just bs -> let len = BS.length bs
                            in (bs:) <$> sinkLbsMaxSize (maxFileSize - len)
 
     -- Opens the image from a conduit source.
     readSource source = do
         bs <- runResourceT $ source $$ sinkLbsMaxSize confMaxFileSize
 
-        case loadBS Autodetect (S.concat bs) of
+        case loadBS Autodetect (BS.concat bs) of
             Left  _   -> throwE UnreadableImage
             Right img -> return $! resize img
 
@@ -128,7 +128,7 @@ jsonField err =
     let jsonParser txt =
             case decodeStrict' (encodeUtf8 txt) of Just node -> Right node
                                                    Nothing   -> Left err
-    in checkMap jsonParser (decodeUtf8 . L.toStrict . encode) textField
+    in checkMap jsonParser (decodeUtf8 . BL.toStrict . encode) textField
 
 scoreField :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
            => Field m Float

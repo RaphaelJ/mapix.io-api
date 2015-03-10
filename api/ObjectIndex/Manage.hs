@@ -210,7 +210,7 @@ newObjectCode key ui@(UserIndex {..}) gen = do
 -- | Creates an 'IndexedObject' object in the index and generates a new
 -- 'ObjectCode' for it.
 newObject :: RandomGen g
-          => ByteString -> UserIndex -> g -> Maybe Text -> [Tag]
+          => ByteString -> UserIndex -> g -> Maybe Text -> Set Tag
           -> IndexedHistogram
           -> IndexSTM (IndexedObject, g)
 newObject key ui gen name tags hist = do
@@ -219,10 +219,11 @@ newObject key ui gen name tags hist = do
 
 -- | Creates an 'IndexedObject' object in the user index from an already
 -- generated 'ObjectCode'.
-addObject :: UserIndex -> ObjectCode -> Maybe Text -> [Tag] -> IndexedHistogram
+addObject :: UserIndex -> ObjectCode -> Maybe Text -> Set Tag
+          -> IndexedHistogram
           -> IndexSTM IndexedObject
 addObject ui code name tags hist = do
-    let !obj = IndexedObject code name (S.fromList tags) hist
+    let !obj = IndexedObject code name tags hist
     bindObject ui obj
     return obj
 
