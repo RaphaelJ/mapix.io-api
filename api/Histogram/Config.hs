@@ -2,10 +2,9 @@ module Histogram.Config where
 
 import Prelude
 
-import qualified Data.Vector as V
 import qualified Data.Vector.Storable as VS
 
-import Histogram.Type (BinsSimilarity (..))
+import Histogram.Type (Weight)
 
 -- Hue bins --------------------------------------------------------------------
 
@@ -25,20 +24,25 @@ confHueBins = VS.fromList [
     , 168 -- 8. Pink
     ]
 
--- | Defines the similarity between every pair of bins in a cross bin
+-- | Defines the similarity between every pair of hue bins in a cross bin
 -- comparison.
-confHueSimilarityMatrix :: V.Vector BinsSimilarity
-confHueSimilarityMatrix = V.fromList [
-      BinsSimilarity 0 1 0.5  -- Red & orange
-    , BinsSimilarity 1 2 0.3  -- Orange & yellow
-    , BinsSimilarity 2 3 0.2  -- Yellow & green
-    , BinsSimilarity 3 4 0.5  -- Green & lime green
-    , BinsSimilarity 4 5 0.5  -- Lime green & cyan
-    , BinsSimilarity 5 6 0.4  -- Cyan & blue
-    , BinsSimilarity 6 7 0.3  -- Blue & purple
-    , BinsSimilarity 7 8 0.35 -- Purple & pink
-    , BinsSimilarity 8 0 0.3  -- Pink & red
-    ]
+confHueSimilarity :: Weight
+confHueSimilarity = 0.3
+
+-- -- | Defines the similarity between every pair of bins in a cross bin
+-- -- comparison.
+-- confHueSimilarityMatrix :: V.Vector BinsSimilarity
+-- confHueSimilarityMatrix = V.fromList [
+--       BinsSimilarity 0 1 0.5  -- Red & orange
+--     , BinsSimilarity 1 2 0.3  -- Orange & yellow
+--     , BinsSimilarity 2 3 0.2  -- Yellow & green
+--     , BinsSimilarity 3 4 0.5  -- Green & lime green
+--     , BinsSimilarity 4 5 0.5  -- Lime green & cyan
+--     , BinsSimilarity 5 6 0.4  -- Cyan & blue
+--     , BinsSimilarity 6 7 0.3  -- Blue & purple
+--     , BinsSimilarity 7 8 0.35 -- Purple & pink
+--     , BinsSimilarity 8 0 0.3  -- Pink & red
+--     ]
 
 -- -----------------------------------------------------------------------------
 

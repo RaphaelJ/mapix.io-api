@@ -10,19 +10,19 @@ import qualified Data.Vector.Storable   as VS
 
 type Weight = Float
 
--- | Defines the similarity between two bins in a cross bin comparison.
-data BinsSimilarity = BinsSimilarity {
-    -- | First bin index.
-      bsBin1 :: Int
-    -- | Second bin index.
-    , bsBin2 :: Int
-    -- | Similarity factor for this pair of bins.
-    -- Defines the weight of the comparison with the corresponding bin.
-    -- Direct bin comparison is weighted at 1.
-    -- e.g. 0.25 defines that the comparison with the previous bin has one
-    -- fourth of the weight of a direct bin comparison.
-    , bsSimilarity :: Weight
-    } deriving Show
+-- -- | Defines the similarity between two bins in a cross bin comparison.
+-- data BinsSimilarity = BinsSimilarity {
+--     -- | First bin index.
+--       bsBin1 :: Int
+--     -- | Second bin index.
+--     , bsBin2 :: Int
+--     -- | Similarity factor for this pair of bins.
+--     -- Defines the weight of the comparison with the corresponding bin.
+--     -- Direct bin comparison is weighted at 1.
+--     -- e.g. 0.25 defines that the comparison with the previous bin has one
+--     -- fourth of the weight of a direct bin comparison.
+--     , bsSimilarity :: Weight
+--     } deriving Show
 
 type ColorIX = DIM3
 

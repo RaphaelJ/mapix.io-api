@@ -11,7 +11,7 @@ import Data.Set (Set)
 import qualified Data.Set as S
 
 import Histogram (
-      Intersec, directIntersec, crossIntersec, intersec
+      Intersec, directIntersec, intersec
     , minIntersec, canExceed
     )
 import ObjectIndex.Type (IndexedObject (..), IndexedHistogram)
@@ -46,8 +46,7 @@ search !nResults !minScore !objs !hist =
         crossScores = [ direct { srScore = score }
                       | direct@(SearchResult {..}) <- directScores'
                       , let !IndexedObject {..} = srObject
-                            !crossScore = crossIntersec srScore hist ioHist
-                            !score      = intersec crossScore
+                            !score = intersec srScore hist ioHist
                       , score >= minScore'
                       ]
 
