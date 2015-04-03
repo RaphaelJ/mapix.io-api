@@ -5,9 +5,9 @@ import Prelude
 import Data.Text (Text)
 import Yesod.Persist
 
-import Histogram (ResizedImage)
 import ObjectIndex.Instance ()
 import ObjectIndex.Type (IndexedHistogram, ObjectCode, TagPath, UserName)
+import ObjectIndex.Persistent.Image (PersistImage)
 
 share [ mkPersist sqlSettings
       , mkDeleteCascade sqlSettings
@@ -31,5 +31,5 @@ Object
 -- Raw images which have been used to compute the object histogram.
 Image
     object                      ObjectId
-    image                       ResizedImage
+    image                       PersistImage
 |]

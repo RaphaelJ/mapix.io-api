@@ -4,9 +4,13 @@ import Prelude
 
 import Data.Vector.Storable (Vector)
 import Vision.Histogram (Histogram (..))
+import Vision.Image.Storage.DevIL (StorageImage)
 import Vision.Primitive (DIM1, DIM3)
 
 import qualified Data.Vector.Storable   as VS
+
+-- | Image which has been resized for its histogram to be computed.
+newtype ResizedImage = ResizedImage { riImage :: StorageImage }
 
 type Weight = Float
 

@@ -49,7 +49,7 @@ getObjectsR = do
 
 data NewObject = NewObject {
       noName       :: Maybe Text
-    , noImages     :: [ResizedImage]
+    , noImages     :: [(ResizedImage, Bool)]
     , noTags       :: Maybe [TagPath]
     , noIgnoreBack :: Bool
     , noIgnoreSkin :: Bool
@@ -63,8 +63,7 @@ postObjectsR :: Handler Value
 postObjectsR = do
     NewObject {..} <- runInputPost newObjectForm
 
-    let !hist = fromImages noIgnoreBack noIgnoreSkin noImages
-    liftIO $ print hist
+    let !hist = fromImages noIgnoreBack noIgnoreSkin (map fst noImages)
 
     headers <- getMashapeHeaders
     let username = mhUser headers

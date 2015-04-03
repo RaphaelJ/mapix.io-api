@@ -34,7 +34,7 @@ postColorSearchR = do
 postImageSearchR :: Handler Value
 postImageSearchR = do
     ImagesForm {..} <- runInputPost imagesForm
-    search' $ fromImages ifIgnoreBack ifIgnoreSkin ifImages
+    search' $ fromImages ifIgnoreBack ifIgnoreSkin (map fst ifImages)
 
 search' :: IndexedHistogram -> Handler Value
 search' hist = do

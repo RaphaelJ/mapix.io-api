@@ -36,6 +36,7 @@ library
                         ObjectIndex.Instance
                         ObjectIndex.Manage
                         ObjectIndex.Persistent
+                        ObjectIndex.Persistent.Image
                         ObjectIndex.Persistent.Manage
                         ObjectIndex.Persistent.Model
                         ObjectIndex.Persistent.Restore

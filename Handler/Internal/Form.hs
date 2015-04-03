@@ -1,3 +1,4 @@
+-- | Provides forms and field types for handlers.
 module Handler.Internal.Form (
       filterForm, ImagesForm (..), imagesForm
     , imagesField, jsonField, scoreField, tagExpressionField
@@ -16,7 +17,10 @@ import Network.HTTP.Conduit (HttpException, parseUrl, responseBody)
 import Network.HTTP.Client.Conduit (withResponse)
 import Text.Parsec (parse)
 import Text.Printf
-import Vision.Image.Storage.DevIL (Autodetect (..), loadBS)
+import Vision.Image.Storage.DevIL (
+      Autodetect (..), JPG (..), StorageError (UnknownFileType)
+    , loadBS
+    )
 
 import qualified Control.Exception          as E
 import qualified Data.ByteString            as BS
@@ -34,7 +38,8 @@ filterForm :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
 filterForm = iopt tagExpressionField "filter"
 
 data ImagesForm = ImagesForm {
-      ifImages     :: [ResizedImage]
+      ifImages     :: [(ResizedImage, Bool)]
+    -- ^ True for each image which has been loaded as a JPG image.
     , ifIgnoreBack :: Bool
     , ifIgnoreSkin :: Bool
     }
@@ -57,7 +62,9 @@ data ImageError = UnreadableImage -- ^ Unable to read the image encoding.
 --
 -- Resizes the image before returning.
 imagesField :: (MonadBaseControl IO m, MonadHandler m, HandlerSite m ~ App)
-            => Field m [ResizedImage]
+            => Field m [(ResizedImage, Bool)]
+            -- ^ Returns True for each image which has been loaded as a JPG
+            -- image.
 imagesField =
     Field {
           fieldParse = parser, fieldView = undefined, fieldEnctype = Multipart
@@ -102,22 +109,32 @@ imagesField =
 
     -- Consumes the ByteString stream up to the maximum file size.
     -- Throws an error if the stream is longer.
-    sinkLbsMaxSize maxFileSize
+    sinkBsMaxSize maxFileSize
         | maxFileSize < 0 = lift $ lift $ throwE TooLarge
         | otherwise       = do
             mBs <- await
             case mBs of
                 Nothing -> return []
                 Just bs -> let len = BS.length bs
-                           in (bs:) <$> sinkLbsMaxSize (maxFileSize - len)
+                           in (bs:) <$> sinkBsMaxSize (maxFileSize - len)
 
     -- Opens the image from a conduit source.
     readSource source = do
-        bs <- runResourceT $ source $$ sinkLbsMaxSize confMaxFileSize
+        bs <- runResourceT $ source $$ sinkBsMaxSize confMaxFileSize
+        let bs' = BS.concat bs
 
-        case loadBS Autodetect (BS.concat bs) of
-            Left  _   -> throwE UnreadableImage
-            Right img -> return $! resize img
+        -- First tries to read the image as a JPG image.
+        (img, isJPG) <- case loadBS JPG bs' of
+            Right img            -> return (img, True)
+            Left UnknownFileType ->
+                -- If it fails, tries to autodetect the file type.
+                case loadBS Autodetect bs' of
+                    Right img -> return (img, False)
+                    Left  _   -> throwE UnreadableImage
+            Left _               -> throwE UnreadableImage
+
+        let !resized = resize img
+        return (resized, isJPG)
 
 -- | Accepts an error message and returns a field which decode the JSON text
 -- field into the corresponding required type.

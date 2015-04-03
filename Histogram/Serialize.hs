@@ -10,7 +10,6 @@ import Control.Applicative
 import Data.Serialize (Serialize)
 import Database.Persist.Sql (PersistFieldSql (..))
 import Vision.Histogram (Histogram (..))
-import Vision.Image.Storage.DevIL (StorageImage, PNG (..), loadBS, saveBS)
 import Vision.Primitive (Shape, Z (..), (:.) (..), shapeLength)
 import Yesod
 
@@ -57,28 +56,6 @@ instance Serialize (Histogram sh a) => PersistField (Histogram sh a) where
         either (Left . T.pack) Right $ S.decode bs
 
 instance Serialize (Histogram sh a) => PersistFieldSql (Histogram sh a) where
-    sqlType _ = SqlBlob
-
--- Images ----------------------------------------------------------------------
-
--- | Serializes the 'StorageImage' as a PNG image.
-instance Serialize StorageImage where
-    put io = let Right bs = saveBS PNG io
-             in S.put bs
-
-    get = do
-        bs <- S.get
-        case loadBS PNG bs of
-            Right io -> return $! io
-            Left err -> fail $ show err
-
-instance PersistField StorageImage where
-    toPersistValue = PersistByteString . S.encode
-
-    fromPersistValue ~(PersistByteString bs) =
-        either (Left . T.pack) Right $ S.decode bs
-
-instance PersistFieldSql StorageImage where
     sqlType _ = SqlBlob
 
 -- HeterogeneousHistogram ------------------------------------------------------

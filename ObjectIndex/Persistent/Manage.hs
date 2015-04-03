@@ -12,6 +12,7 @@ import Database.Persist.Sql
 import qualified Data.Set as S
 
 import Histogram (ResizedImage)
+import ObjectIndex.Persistent.Image (PersistImage (..))
 import ObjectIndex.Persistent.Model
 import ObjectIndex.Type (IndexedObject (..), UserName)
 import ObjectIndex.Tag (tagPath)
@@ -34,14 +35,19 @@ getUser username = do
 -- Objects----------------------------------------------------------------------
 
 -- | Inserts the object, its tags and its sources images to the database.
-addObject :: MonadIO m => UserId -> IndexedObject -> [ResizedImage]
+addObject :: MonadIO m => UserId -> IndexedObject
+          -> [(ResizedImage, Bool)] -- ^ True for each image which must be saved
+                                    -- as a JPG image.
           -> SqlPersistT m (Entity Object)
 addObject userId IndexedObject {..} imgs = do
     let tags = map tagPath $ S.toList ioTags
         obj  = Object ioCode userId ioName tags ioHist
     objId <- insert obj
 
-    insertMany_ $ map (Image objId) imgs
+    insertMany_ [ Image objId persistImg
+                | (img, isJPG) <- imgs
+                , let persistImg | isJPG     = PersistJPG img
+                                 | otherwise = PersistPNG img ]
 
     return $! Entity objId obj
 

@@ -1,6 +1,6 @@
 -- | Functions to create an histogram from an image or a list of colors.
 module Histogram.Compute (
-      ResizedImage (..), Mask
+      Mask
     , fromImages, fromImage, fromColors
     , resize
     , average, normalize, alphaMask, backgroundMask
@@ -17,8 +17,6 @@ import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Ratio
-import Data.Serialize (Serialize)
-import Database.Persist.Sql (PersistFieldSql)
 import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
 import Vision.Image (
@@ -31,7 +29,6 @@ import Vision.Image.Storage.DevIL (StorageImage (..))
 import Vision.Primitive (
       Z (..), (:.) (..), Point, Size, ix2, shapeLength, toLinearIndex
     )
-import Yesod (PersistField)
 
 import qualified Data.Vector.Storable   as V
 import qualified Vision.Histogram       as H
@@ -43,10 +40,9 @@ import Histogram.Color (
     )
 import Histogram.Config (confMaxImageSize)
 import Histogram.Serialize ()
-import Histogram.Type (HeterogeneousHistogram (..), heterogeneousHistogram)
-
-newtype ResizedImage = ResizedImage { riImage :: StorageImage }
-    deriving (Serialize, PersistField, PersistFieldSql)
+import Histogram.Type (
+      HeterogeneousHistogram (..), ResizedImage (..), heterogeneousHistogram
+    )
 
 type Mask = Manifest Bool
 
