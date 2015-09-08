@@ -3,12 +3,8 @@ module Handler.Internal.Listing (
       Listing, ListingForm (..), listing, listingForm
     ) where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Applicative
-import Data.Maybe
-import Data.Text (Text)
-import qualified Data.Text as T
 import Yesod hiding (count)
 
 import Handler.Config (confDefaultCount, confMaxCount)
@@ -49,9 +45,9 @@ listingForm = ListingForm <$> iopt positiveField "offset"
 countField :: (RenderMessage (HandlerSite m) FormMessage, Monad m)
            => Field m Int
 countField =
-    let msgMax = T.pack $!    "The value can't be higher than "
-                           ++ show confMaxCount
-        msgMin = "The value must positive or zero" :: Text
+    let msgMax = asText $! pack $!    "The value can't be higher than "
+                                   ++ show confMaxCount
+        msgMin = asText "The value must positive or zero"
     in checkBool (<= confMaxCount) msgMax $
        checkBool (>= 0)            msgMin intField
 

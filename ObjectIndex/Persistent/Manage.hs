@@ -3,9 +3,8 @@ module ObjectIndex.Persistent.Manage (
     , addObject, removeObject
     ) where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Monad.IO.Class
 import Database.Persist
 import Database.Persist.Sql
 

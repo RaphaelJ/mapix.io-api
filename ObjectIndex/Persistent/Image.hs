@@ -1,10 +1,8 @@
 module ObjectIndex.Persistent.Image (PersistImage (..)) where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Applicative
 import Data.Serialize (Serialize)
-import Data.ByteString (ByteString)
 import Database.Persist.Sql (PersistFieldSql (..))
 import Vision.Image.Storage.DevIL (JPG (..), PNG (..), loadBS, saveBS)
 import Yesod (

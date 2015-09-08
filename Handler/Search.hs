@@ -4,8 +4,6 @@ module Handler.Search (
 
 import Import hiding (count)
 
-import Data.Maybe
-
 import Handler.Config (confDefaultCount, confMaxCount, confDefaultMinScore)
 import Handler.Error (APIError (IndexExhausted), apiFail)
 import Handler.Internal.Form (
@@ -46,7 +44,7 @@ search' hist = do
     let username = mhUser headers
         maxSize  = maxIndexSize $ mhSubscription headers
 
-    oi <- objectIndex <$> getYesod
+    oi <- getsYesod appObjectIndex
 
     mObjs <- runTransaction $ do
         ui   <- getUserIndex oi username

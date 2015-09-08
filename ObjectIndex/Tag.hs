@@ -4,12 +4,9 @@ module ObjectIndex.Tag (
     , tagExpressionParser, getMatchingObjects
     ) where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Applicative ((<$>), (<*), (<*>))
-import Data.Set (Set)
-import Data.Text (Text)
-import Text.Parsec
+import Text.Parsec hiding ((<|>))
 import Text.Parsec.Text
 
 import qualified Data.Set   as S

@@ -15,33 +15,17 @@ module ObjectIndex.Manage (
     )
     where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Applicative
-import Control.Concurrent.STM (
-      atomically, modifyTVar', newTVar, newTVarIO, readTVar, writeTVar
-    )
-import Control.Monad
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.STM (STM)
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Reader (ask, runReaderT)
-import Data.ByteString.Lazy (ByteString)
 import Data.Digest.Pure.SHA (hmacSha1, integerDigest)
 import Data.Digits (digits)
-import Data.Int
-import Data.Monoid
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Time.Clock (getCurrentTime)
 import System.Random (RandomGen, random)
 
 import qualified Data.ByteString.Lazy.Char8 as C
 import qualified Data.Foldable              as F
 import qualified Data.Map                   as M
 import qualified Data.Set                   as S
-import qualified Data.Text                  as T
-import qualified Data.Vector.Storable       as V
+import qualified Data.Vector.Unboxed        as VU
 
 import ObjectIndex.Type
 
@@ -182,7 +166,7 @@ objectCodeLength = 16
 -- | Generates a new unique object code using the given random generator and
 -- secret key. Returns the new state of the generator.
 newObjectCode :: RandomGen g
-              => ByteString -> UserIndex -> g -> IndexSTM (ObjectCode, g)
+              => LByteString -> UserIndex -> g -> IndexSTM (ObjectCode, g)
 newObjectCode key ui@(UserIndex {..}) gen = do
     objs <- lift $ readTVar uiObjects
     if code `M.member` objs
@@ -193,24 +177,24 @@ newObjectCode key ui@(UserIndex {..}) gen = do
     rand1, rand2 :: Int64
     (rand1, gen')  = random gen
     (rand2, gen'') = random gen'
-    rand           = (C.pack $ show rand1) <> (C.pack $ show rand2)
+    rand           = C.pack (show rand1) <> C.pack (show rand2)
 
-    key' = key <> (C.pack $ T.unpack uiName)
+    key' = key <> C.pack (unpack uiName)
 
     code = let hmac = integerDigest $ hmacSha1 key' rand
-           in ObjectCode $ T.pack $ take objectCodeLength $ toBase62 $ hmac
+           in ObjectCode $ pack $ take objectCodeLength $ toBase62 $ hmac
 
     -- | Encodes an integer in base 62 (using letters and numbers).
-    toBase62 i = map ((digitToChar V.!) . fromInteger) $ digits 62 i
+    toBase62 i = map ((digitToChar VU.!) . fromInteger) $ digits 62 i
 
-    digitToChar = V.fromList $ ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
+    digitToChar = VU.fromList $ ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 
 -- Objects ---------------------------------------------------------------------
 
 -- | Creates an 'IndexedObject' object in the index and generates a new
 -- 'ObjectCode' for it.
 newObject :: RandomGen g
-          => ByteString -> UserIndex -> g -> Maybe Text -> Set Tag
+          => LByteString -> UserIndex -> g -> Maybe Text -> Set Tag
           -> IndexedHistogram
           -> IndexSTM (IndexedObject, g)
 newObject key ui gen name tags hist = do

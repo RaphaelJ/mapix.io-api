@@ -2,7 +2,6 @@ module Foundation where
 
 import Import.NoFoundation
 import Database.Persist.Sql (ConnectionPool, runSqlPool)
-import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
 
@@ -11,11 +10,11 @@ import ObjectIndex (ObjectIndex, ObjectCode, TagPath)
 import qualified Handler.Error  as E
 
 data App = App
-    { appSettings    :: AppConfig DefaultEnv Extra
+    { appSettings    :: AppSettings
     , appConnPool    :: ConnectionPool -- ^ Database connection pool.
     , appHttpManager :: Manager
     , appLogger      :: Logger
-    , appEncryptKey  :: B.ByteString
+    , appEncryptKey  :: LByteString
     , appObjectIndex :: ObjectIndex
     }
 
@@ -31,12 +30,12 @@ instance Yesod App where
 
     errorHandler err =
         E.apiFail $ case err of
-                        NotFound           -> E.NotFound
-                        InternalError msg  -> E.InternalServerError msg
-                        InvalidArgs msgs   -> E.BadRequest msgs
-                        NotAuthenticated   -> undefined
-                        PermissionDenied _ -> undefined
-                        BadMethod method   -> E.MethodNotAllowed method
+            NotFound           -> E.NotFound
+            InternalError msg  -> E.InternalServerError msg
+            InvalidArgs msgs   -> E.BadRequest msgs
+            NotAuthenticated   -> error "Unreachable: Not authenticated"
+            PermissionDenied _ -> error "Unreachable: Permission denied"
+            BadMethod method   -> E.MethodNotAllowed method
 
     makeSessionBackend _ = return Nothing
 

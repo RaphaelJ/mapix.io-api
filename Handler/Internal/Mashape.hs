@@ -7,8 +7,6 @@ module Handler.Internal.Mashape (
 import Import
 
 import Data.Maybe (fromJust)
-import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
 
 data MashapeSubscription = MashapeFree  | MashapeBasic | MashapePremium
                          | MashapeUltra | MashapeCustom
@@ -51,5 +49,5 @@ maxIndexSize Nothing               = Nothing
 -- | Sets the X-Mashape-Billing header to the given list of values.
 setBilling :: [(Text, Int)] -> Handler ()
 setBilling xs =
-    let val = T.intercalate ";" [ name <> (T.pack $ show n) | (name, n) <- xs ]
+    let val = intercalate ";" [ name <> (pack $ show n) | (name, n) <- xs ]
     in addHeader "X-Mashape-Billing" val

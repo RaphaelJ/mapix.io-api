@@ -2,9 +2,6 @@ module Handler.Tag (getTagsR, getTagR, deleteTagR) where
 
 import Import
 
-import Control.Concurrent.STM (readTVar)
-import Network.HTTP.Types.Status (noContent204)
-
 import Handler.Internal.Mashape (getMashapeHeaders, mhUser)
 import Handler.Internal.Json ()
 import Handler.Internal.Type (StaticTag (..))
@@ -20,7 +17,7 @@ import ObjectIndex (
 getTagsR :: Handler Value
 getTagsR = do
     username <- mhUser <$> getMashapeHeaders
-    oi       <- objectIndex <$> getYesod
+    oi       <- getsYesod appObjectIndex
 
     rootTag <- runTransaction $ do
         ui <- getUserIndex oi username
@@ -34,7 +31,7 @@ getTagsR = do
 getTagR :: TagPath -> Handler Value
 getTagR path = do
     username <- mhUser <$> getMashapeHeaders
-    oi       <- objectIndex <$> getYesod
+    oi       <- getsYesod appObjectIndex
 
     mTag <- runTransaction $ do
         ui   <- getUserIndex oi username
@@ -51,7 +48,7 @@ getTagR path = do
 deleteTagR :: TagPath -> Handler Value
 deleteTagR path = do
     username    <- mhUser <$> getMashapeHeaders
-    oi          <- objectIndex <$> getYesod
+    oi          <- getsYesod appObjectIndex
 
     exists <- runTransaction $ do
         ui <- getUserIndex oi username

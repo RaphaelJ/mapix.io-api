@@ -27,8 +27,9 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              mkRequestLogger, outputFormat)
 import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet,
                                              toLogStr)
-import Web.ClientSession (defaultKeyFile, randomKey)
 
+import System.Directory (doesFileExist)
+import Web.ClientSession (defaultKeyFile, randomKey)
 
 import Handler.Object
 import Handler.Search
@@ -52,7 +53,7 @@ makeFoundation appSettings = do
     -- key, and object index.
     appHttpManager  <- newManager
     appLogger       <- newStdoutLoggerSet defaultBufSize >>= makeYesodLogger
-    appKey          <- getEncryptionKey
+    appEncryptKey   <- getEncryptionKey
     appObjectIndex  <- newIndex
 
     -- We need a log function to create a connection pool. We need a connection
@@ -73,22 +74,22 @@ makeFoundation appSettings = do
         (sqlPoolSize $ appDatabaseConf appSettings)
 
     -- Perform database migration using our application's logging settings.
-    runLoggingT (runSqlPool (runMigration migrateIndex >> restoreIndex ii)
+    runLoggingT (runSqlPool (runMigration migrateIndex >> restoreIndex appObjectIndex)
                             pool) logFunc
 
     -- Return the foundation
     return $ mkFoundation pool
 
 -- | Tries to read the key file or initializes it with a random key.
-getEncryptionKey :: IO LBS.ByteString
+getEncryptionKey :: IO LByteString
 getEncryptionKey = do
     exists <- doesFileExist encryptKeyFile
     if exists
-        then LBS.readFile encryptKeyFile
+        then readFile encryptKeyFile
         else do
             (bs, _) <- randomKey
-            SBS.writeFile encryptKeyFile bs
-            return $ LBS.fromStrict bs
+            writeFile encryptKeyFile bs
+            return $ repack bs
   where
     encryptKeyFile = "config" </> defaultKeyFile
 
@@ -147,7 +148,8 @@ appMain :: IO ()
 appMain = do
     -- Get the settings from all relevant sources
     settings <- loadAppSettingsArgs
-        -- fall back to compile-time values, set to [] to require values at runtime
+        -- fall back to compile-time values, set to [] to require values at
+        -- runtime
         [configSettingsYmlValue]
 
         -- allow environment variables to override

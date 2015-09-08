@@ -85,6 +85,7 @@ library
                       , data-default
                       , directory                   >= 1.1          && < 1.3
                       , fast-logger                 >= 2.2          && < 2.5
+                      , file-embed
                       , http-conduit                >= 2.1          && < 2.2
                       , http-types                  >= 0.8.5        && < 0.9
                       , monad-control               >= 0.3          && < 1.1

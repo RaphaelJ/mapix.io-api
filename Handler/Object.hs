@@ -5,12 +5,8 @@ module Handler.Object (
 
 import Import
 
-import Control.Monad
-import Data.Maybe
-import Network.HTTP.Types.Status (created201, noContent204)
 import System.Random (newStdGen)
 
-import qualified Data.Foldable  as F
 import qualified Data.Set       as S
 
 import Handler.Error (APIError (IndexExhausted), apiFail)
@@ -39,7 +35,7 @@ getObjectsR = do
     tagExpr       <- runInputGet filterForm
 
     username <- mhUser <$> getMashapeHeaders
-    ii       <- objectIndex <$> getYesod
+    ii       <- getsYesod appObjectIndex
 
     objs <- runTransaction $ do
         ui <- getUserIndex ii username
@@ -69,9 +65,8 @@ postObjectsR = do
     let username = mhUser headers
         maxSize  = maxIndexSize $ mhSubscription headers
 
-    app     <- getYesod
-    let key = encryptKey app
-        oi  = objectIndex app
+    key <- getsYesod appEncryptKey
+    oi  <- getsYesod appObjectIndex
 
     gen     <- lift newStdGen
 
@@ -109,6 +104,7 @@ postObjectsR = do
             sendResponseStatus created201 (toJSON $ IndexedObjectWithColors obj)
         Nothing  -> apiFail IndexExhausted
   where
+    newObjectForm :: FormInput Handler NewObject
     newObjectForm = NewObject <$> iopt textField     "name"
                               <*> ireq imagesField   "images"
                               <*> iopt tagsField     "tags"
@@ -125,18 +121,18 @@ deleteObjectsR = do
     tagExpr <- runInputGet (iopt tagExpressionField "filter")
 
     username <- mhUser <$> getMashapeHeaders
-    oi       <- objectIndex <$> getYesod
+    oi       <- getsYesod appObjectIndex
 
     runDB $ do
         objs <- runTransaction $ do
             ui   <- getUserIndex oi username
             objs <- getMatchingObjects ui tagExpr
-            F.mapM_ (removeObject ui) objs
+            mapM_ (removeObject ui) objs
             return objs
 
         when (not $ S.null objs) $ do
             Entity userId _ <- DB.getUser username
-            F.mapM_ (DB.removeObject userId) objs
+            mapM_ (DB.removeObject userId) objs
 
     sendResponseStatus noContent204 ()
 
@@ -146,7 +142,7 @@ deleteObjectsR = do
 getObjectR :: ObjectCode -> Handler Value
 getObjectR code = do
     username    <- mhUser <$> getMashapeHeaders
-    oi          <- objectIndex <$> getYesod
+    oi          <- getsYesod appObjectIndex
 
     mObj <- runTransaction $ do
         ui <- getUserIndex oi username
@@ -160,7 +156,7 @@ getObjectR code = do
 deleteObjectR :: ObjectCode -> Handler ()
 deleteObjectR code = do
     username <- mhUser <$> getMashapeHeaders
-    oi       <- objectIndex <$> getYesod
+    oi       <- getsYesod appObjectIndex
 
     exists <- runDB $ do
         mObj <- runTransaction $ do

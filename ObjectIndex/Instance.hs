@@ -3,16 +3,14 @@
 -- | Provides instances for the types from 'ObjectIndex.Type'.
 module ObjectIndex.Instance () where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Arrow
-import Control.Monad
 import Database.Persist.Sql (PersistFieldSql (..))
 import Text.Parsec (parse)
 import Text.Printf
+import Text.Read (readsPrec)
 import Yesod
 
-import qualified Data.Text as T
 
 import ObjectIndex.Type
 import ObjectIndex.Tag (tagPathParser, tagPath2Text)
@@ -27,7 +25,7 @@ instance PersistFieldSql ObjectCode where
     sqlType action = sqlType (ocValue `liftM` action)
 
 instance Show TagPath where
-    show = T.unpack . tagPath2Text
+    show = unpack . tagPath2Text
 
 instance PathPiece TagPath where
     fromPathPiece txt =

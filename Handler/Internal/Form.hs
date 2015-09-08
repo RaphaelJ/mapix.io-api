@@ -6,14 +6,8 @@ module Handler.Internal.Form (
 
 import Import
 
-import Control.Monad
-import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
-import Control.Monad.Trans.Resource (runResourceT)
-import Data.Conduit (($$), await)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Network.HTTP.Conduit (HttpException, parseUrl, responseBody)
-import Network.HTTP.Client.Conduit (withResponse)
+import Data.Aeson (decodeStrict', encode)
 import Text.Parsec (parse)
 import Text.Printf
 import Vision.Image.Storage.DevIL (
@@ -66,7 +60,9 @@ imagesField :: (MonadBaseControl IO m, MonadHandler m, HandlerSite m ~ App)
             -- image.
 imagesField =
     Field {
-          fieldParse = parser, fieldView = undefined, fieldEnctype = Multipart
+            fieldParse      = parser
+          , fieldView       = error "No field view"
+          , fieldEnctype    = Multipart
         }
   where
     parser urls files = do
@@ -94,7 +90,7 @@ imagesField =
 
     -- Downloads and opens the images from the URLs.
     readUrls urls = do
-        manager <- httpManager <$> lift getYesod
+        manager <- lift $ getsYesod appHttpManager
         forM urls $ \url ->
             case parseUrl (T.unpack url) of
                 Nothing  -> throwE InvalidUrl

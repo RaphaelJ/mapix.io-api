@@ -10,7 +10,7 @@ import ClassyPrelude
 
 import Control.Monad.ST
 import Control.Parallel.Strategies
-import Data.List (foldl1)
+import Data.List (foldl1')
 import Data.Ratio
 import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
@@ -175,7 +175,7 @@ normalize HeterogeneousHistogram {..} =
                 | otherwise     = hhGreys
     in heterogeneousHistogram colors greys
   where
-    histSum = V.sum . H.vector
+    histSum = sum . H.vector
 
 -- -----------------------------------------------------------------------------
 

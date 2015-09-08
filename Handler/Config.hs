@@ -1,6 +1,6 @@
 module Handler.Config where
 
-import Prelude
+import ClassyPrelude
 
 import Histogram (Intersec)
 

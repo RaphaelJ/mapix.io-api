@@ -3,12 +3,8 @@ module Handler.Error (
     )
     where
 
-import Prelude
+import ClassyPrelude
 
-import Data.Monoid ((<>))
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
 import Network.HTTP.Types.Method (Method)
 import Network.HTTP.Types.Status (
       Status (statusCode), mkStatus, badRequest400, notFound404
@@ -37,7 +33,7 @@ errorName (InternalServerError _) = "INTERNAL-SERVER-ERROR"
 
 errorMessage :: APIError -> Maybe Text
 errorMessage (BadRequest msgs) =
-    let msgsTxt = T.intercalate ", " msgs
+    let msgsTxt = intercalate ", " msgs
     in Just $ "You submitted an incorrect request: " <> msgsTxt
 errorMessage NotFound =
     Just "The resource you are looking for doesn't exist"

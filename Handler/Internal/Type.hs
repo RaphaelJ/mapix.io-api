@@ -1,8 +1,7 @@
 -- | Provides various api types.
 module Handler.Internal.Type where
 
-import Data.Map (Map)
-import Data.Text (Text)
+import ClassyPrelude
 
 import ObjectIndex (IndexedObject, Tag, TagType)
 
