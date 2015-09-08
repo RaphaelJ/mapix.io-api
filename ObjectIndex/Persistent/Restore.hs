@@ -1,9 +1,7 @@
 module ObjectIndex.Persistent.Restore (restoreIndex) where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Applicative
-import Control.Monad
 import Control.Monad.IO.Class
 import Database.Persist
 import Database.Persist.Sql

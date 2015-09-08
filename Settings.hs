@@ -5,16 +5,48 @@
 -- declared in the Foundation.hs file.
 module Settings where
 
-import Prelude
-import Database.Persist.Sqlite (SqliteConf)
-import Yesod.Default.Config
-import Data.Yaml
+import ClassyPrelude.Yesod
+import Data.Aeson                  (withObject, (.!=), (.:?))
+import Database.Persist.Sqlite     (SqliteConf)
+import Network.Wai.Handler.Warp    (HostPreference)
 
--- | Which Persistent backend this site is using.
-type PersistConf = SqliteConf
+-- | Runtime settings to configure this application. These settings can be
+-- loaded from various sources: defaults, environment variables, config files,
+-- theoretically even a database.
+data AppSettings = AppSettings
+    { appDatabaseConf           :: SqliteConf
+    -- ^ Configuration settings for accessing the database.
+    , appRoot                   :: Text
+    -- ^ Base for all generated URLs.
+    , appHost                   :: HostPreference
+    -- ^ Host/interface the server should bind to.
+    , appPort                   :: Int
+    -- ^ Port to listen on
+    , appIpFromHeader           :: Bool
+    -- ^ Get the IP address from the header when logging. Useful when sitting
+    -- behind a reverse proxy.
 
-data Extra = Extra {
-    } deriving Show
+    , appDetailedRequestLogging :: Bool
+    -- ^ Use detailed request logging system
+    , appShouldLogAll           :: Bool
+    -- ^ Should all log messages be displayed?
+    }
 
-parseExtra :: DefaultEnv -> Object -> Parser Extra
-parseExtra _ _ = return Extra
+instance FromJSON AppSettings where
+    parseJSON = withObject "AppSettings" $ \o -> do
+        let defaultDev =
+#if DEVELOPMENT
+                True
+#else
+                False
+#endif
+        appDatabaseConf           <- o .: "database"
+        appRoot                   <- o .: "approot"
+        appHost                   <- fromString <$> o .: "host"
+        appPort                   <- o .: "port"
+        appIpFromHeader           <- o .: "ip-from-header"
+
+        appDetailedRequestLogging <- o .:? "detailed-logging" .!= defaultDev
+        appShouldLogAll           <- o .:? "should-log-all"   .!= defaultDev
+
+        return AppSettings {..}

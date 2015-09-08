@@ -7,7 +7,6 @@ import Prelude
 
 import Control.Applicative ((<$>), (<|>))
 import Control.Monad
-import Data.Aeson.Types (Parser)
 import Data.Char (digitToInt, intToDigit, isHexDigit)
 import qualified Data.HashMap.Strict as H
 import qualified Data.Map as M

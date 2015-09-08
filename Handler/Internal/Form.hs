@@ -10,7 +10,6 @@ import Control.Monad
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import Control.Monad.Trans.Resource (runResourceT)
-import Data.Aeson (decodeStrict', encode)
 import Data.Conduit (($$), await)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Network.HTTP.Conduit (HttpException, parseUrl, responseBody)

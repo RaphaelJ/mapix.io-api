@@ -1,41 +1,33 @@
 module Foundation where
 
-import Prelude
-
-import qualified Data.ByteString.Lazy as B
-import Database.Persist.Sql (SqlBackend)
-import Network.HTTP.Conduit (Manager)
-import Yesod
-import Yesod.Core.Types (Logger)
-import Yesod.Default.Config
+import Import.NoFoundation
+import Database.Persist.Sql (ConnectionPool, runSqlPool)
+import Yesod.Default.Util   (addStaticContentExternal)
+import Yesod.Core.Types     (Logger)
+import qualified Yesod.Core.Unsafe as Unsafe
 
 import ObjectIndex (ObjectIndex, ObjectCode, TagPath)
-import Settings (Extra (..))
-import Settings.Development (development)
 
-import qualified Handler.Error as E
-import qualified Settings
+import qualified Handler.Error  as E
 
--- | The site argument for your application. This can be a good place to
--- keep settings and values requiring initialization before your application
--- starts running, such as database connections. Every handler will have
--- access to the data present here.
-data App = App {
-      settings      :: AppConfig DefaultEnv Extra
-    , connPool      :: PersistConfigPool Settings.PersistConf
-    , httpManager   :: Manager
-    , persistConfig :: Settings.PersistConf
-    , appLogger     :: Logger
-    , encryptKey    :: B.ByteString
-    , objectIndex   :: ObjectIndex
+data App = App
+    { appSettings    :: AppConfig DefaultEnv Extra
+    , appConnPool    :: ConnectionPool -- ^ Database connection pool.
+    , appHttpManager :: Manager
+    , appLogger      :: Logger
+    , appEncryptKey  :: B.ByteString
+    , appObjectIndex :: ObjectIndex
     }
+
+instance HasHttpManager App where
+    getHttpManager = appHttpManager
 
 mkYesodData "App" $(parseRoutesFile "config/routes")
 
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
 
 instance Yesod App where
-    approot = ApprootMaster $ appRoot . settings
+    approot = ApprootMaster $ appRoot . appSettings
 
     errorHandler err =
         E.apiFail $ case err of
@@ -48,22 +40,26 @@ instance Yesod App where
 
     makeSessionBackend _ = return Nothing
 
-    makeLogger = return . appLogger
+    -- What messages should be logged. The following includes all messages when
+    -- in development, and warnings and errors in production.
+    shouldLog app _source level =
+        appShouldLogAll (appSettings app)
+            || level == LevelWarn
+            || level == LevelError
 
-    shouldLog _ _source level =
-        development || level == LevelWarn || level == LevelError
+    makeLogger = return . appLogger
 
 instance YesodPersist App where
     type YesodPersistBackend App = SqlBackend
-
-    runDB = defaultRunDB persistConfig connPool
+    runDB action = do
+        master <- getYesod
+        runSqlPool action $ appConnPool master
 
 instance YesodPersistRunner App where
-    getDBRunner = defaultGetDBRunner connPool
+    getDBRunner = defaultGetDBRunner appConnPool
 
 instance RenderMessage App FormMessage where
     renderMessage _ _ = defaultFormMessage
 
--- | Get the 'Extra' value, used to hold data from the settings.yml file.
-getExtra :: Handler Extra
-getExtra = fmap (appExtra . settings) getYesod
+unsafeHandler :: App -> Handler a -> IO a
+unsafeHandler = Unsafe.fakeHandlerGetLogger appLogger

@@ -1,9 +1,6 @@
 module ObjectIndex.Persistent.Model where
 
-import Prelude
-
-import Data.Text (Text)
-import Yesod.Persist
+import ClassyPrelude.Yesod hiding (Object)
 
 import ObjectIndex.Instance ()
 import ObjectIndex.Type (IndexedHistogram, ObjectCode, TagPath, UserName)
