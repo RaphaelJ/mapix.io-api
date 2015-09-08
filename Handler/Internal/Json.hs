@@ -3,22 +3,20 @@
 -- | Provides 'ToJSON' and 'FromJSON' instances for various API types.
 module Handler.Internal.Json () where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Applicative ((<$>), (<|>))
-import Control.Monad
+import Data.Aeson ((.=), (.:), Value (Object, String), object)
+import Data.Aeson.Types (FromJSON (..), Parser, ToJSON (..))
 import Data.Char (digitToInt, intToDigit, isHexDigit)
-import qualified Data.HashMap.Strict as H
-import qualified Data.Map as M
-import qualified Data.Set as S
-import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Vector as V
-import Data.Word
 import Text.Parsec (char, count, eof, optional, parse, satisfy)
 import Text.Printf
 import Vision.Image (RGBPixel (..))
-import Yesod.Core.Json
+import Yesod.Core.Json (array)
+
+import qualified Data.HashMap.Strict    as H
+import qualified Data.Map               as M
+import qualified Data.Set               as S
+import qualified Data.Vector            as V
 
 import Handler.Config (confDefaultMinScore)
 import Handler.Internal.Type
@@ -49,7 +47,7 @@ instance ToJSON Color where
                , "rgb"    .= array [r, g, b]
                , "weight" .= w ]
       where
-        hex = T.pack $! printf "#%s%s%s" (toHex r) (toHex g) (toHex b)
+        hex = asText $! pack $! printf "#%s%s%s" (toHex r) (toHex g) (toHex b)
 
         toHex v = let (d, m) = int v `divMod` 16
                   in [ intToDigit d, intToDigit m ]

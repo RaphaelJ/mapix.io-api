@@ -4,9 +4,8 @@
 -- | Provides instances for the serialization and persistence of histograms.
 module Histogram.Serialize () where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Applicative
 import Data.Serialize (Serialize)
 import Database.Persist.Sql (PersistFieldSql (..))
 import Vision.Histogram (Histogram (..))

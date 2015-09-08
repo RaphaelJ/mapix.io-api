@@ -2,7 +2,6 @@ module ObjectIndex.Persistent.Restore (restoreIndex) where
 
 import ClassyPrelude
 
-import Control.Monad.IO.Class
 import Database.Persist
 import Database.Persist.Sql
 
@@ -36,4 +35,5 @@ restoreIndex ii = do
 
             forM_ fuiObjects $ \(Object {..}) -> do
                 tags <- S.fromList <$> mapM (getTag ui) objectTags
-                addObject ui objectCode objectName tags objectHistogram
+                _ <- addObject ui objectCode objectName tags objectHistogram
+                return ()

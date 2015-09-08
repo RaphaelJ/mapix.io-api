@@ -6,16 +6,11 @@ module Histogram.Compute (
     , average, normalize, alphaMask, backgroundMask
     ) where
 
-import Prelude
+import ClassyPrelude
 
-import Control.Applicative
-import Control.Monad
 import Control.Monad.ST
 import Control.Parallel.Strategies
-import Data.Either
-import Data.Function
-import Data.List
-import Data.Maybe
+import Data.List (foldl1)
 import Data.Ratio
 import Vision.Detector.Edge (canny)
 import Vision.Histogram (Histogram (..))
@@ -155,7 +150,7 @@ average [hist] = normalize hist
 average hists  =
     let hists'  = map normalize hists
         n       = fromIntegral $ length hists
-        sumHist = foldl1 addHeterogeneousHists hists'
+        sumHist = foldl1' addHeterogeneousHists hists'
     in heterogeneousHistogram (H.map (/ n) $ hhColors sumHist)
                               (H.map (/ n) $ hhGreys  sumHist)
   where
