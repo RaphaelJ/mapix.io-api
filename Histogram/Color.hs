@@ -8,13 +8,9 @@ module Histogram.Color (
     , colorsHistSize, greysHistSize
     ) where
 
-import Prelude
+import ClassyPrelude
 
-import Data.Function
-import Data.List
 import Data.Ratio
-import Data.Word
-import Foreign.Storable (Storable)
 import Vision.Histogram (ToHistogram (..))
 import Vision.Image (Pixel (..), RGBPixel (..), HSVPixel (..), convert)
 import Vision.Primitive (Z (..), (:.) (..), ix1, ix3)

@@ -1,8 +1,6 @@
 module Histogram.Config where
 
-import Prelude
-
-import qualified Data.Vector.Storable as VS
+import ClassyPrelude
 
 import Histogram.Type (Weight)
 
@@ -11,8 +9,8 @@ import Histogram.Type (Weight)
 -- | Defines how hue are mapped to the histogram.
 -- Upper inclusive value of the bin. Each bin starts after the end of the
 -- previous bin. The first bin starts at the end of the last bin.
-confHueBins :: VS.Vector Int
-confHueBins = VS.fromList [
+confHueBins :: SVector Int
+confHueBins = fromList [
       4   -- 0. Red
     , 21  -- 1. Orange
     , 35  -- 2. Yellow
@@ -58,7 +56,7 @@ confHistColorMinVal = 20
 
 -- | Number of values bins in the color histogram.
 confHistNHues :: Int
-confHistNHues = VS.length confHueBins
+confHistNHues = length confHueBins
 
 -- | Number of saturation bins in the color histogram.
 confHistNSats :: Int

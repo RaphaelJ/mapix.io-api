@@ -19,7 +19,7 @@ data PersistImage = PersistJPG ResizedImage -- ^ Lossy compression.
                   | PersistPNG ResizedImage -- ^ Lossless compression.
 
 instance Serialize PersistImage where
-    -- Serialize the image using Either. Left is for JPG encoding while Right is
+    -- Serialize the image in an Either. Left is for JPG encoding while Right is
     -- used for PNG encoding.
 
     put img = do

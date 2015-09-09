@@ -1,13 +1,10 @@
 module Histogram.Type where
 
-import Prelude
+import ClassyPrelude
 
-import Data.Vector.Storable (Vector)
 import Vision.Histogram (Histogram (..))
 import Vision.Image.Storage.DevIL (StorageImage)
 import Vision.Primitive (DIM1, DIM3)
-
-import qualified Data.Vector.Storable   as VS
 
 -- | Image which has been resized for its histogram to be computed.
 newtype ResizedImage = ResizedImage { riImage :: StorageImage }
@@ -43,17 +40,17 @@ data HeterogeneousHistogram = HeterogeneousHistogram {
 heterogeneousHistogram :: Histogram ColorIX Weight -> Histogram GreyIX  Weight
                        -> HeterogeneousHistogram
 heterogeneousHistogram colors greys =
-    HeterogeneousHistogram colors greys (VS.sum $ vector colors)
+    HeterogeneousHistogram colors greys (sum $ vector colors)
 
 -- | Histogram on which some bins are undefined.
 --
 -- When compared to an 'HeterogeneousHistogram', any undefined bin will be
 -- ignored in the computation of the matching score.
 data PartialHistogram = PartialHistogram {
-      phColorsIxs    :: !(Vector Int) -- ^ Linear indexes of color bins.
-    , phColorsValues :: !(Vector Weight)
-    , phGreysIxs     :: !(Vector Int) -- ^ Linear indexes of grey-scale bins.
-    , phGreysValues  :: !(Vector Weight)
+      phColorsIxs    :: !(SVector Int) -- ^ Linear indexes of color bins.
+    , phColorsValues :: !(SVector Weight)
+    , phGreysIxs     :: !(SVector Int) -- ^ Linear indexes of grey-scale bins.
+    , phGreysValues  :: !(SVector Weight)
     -- | @phSumValues == sum phColorsValues + sum phGreysValues@s 
     , phSumValues    :: !Weight
     } deriving Show

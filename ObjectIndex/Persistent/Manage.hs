@@ -35,8 +35,8 @@ getUser username = do
 
 -- | Inserts the object, its tags and its sources images to the database.
 addObject :: MonadIO m => UserId -> IndexedObject
-          -> [(ResizedImage, Bool)] -- ^ True for each image which must be saved
-                                    -- as a JPG image.
+          -> [(ResizedImage, Bool)]
+          -- ^ True for each image that can be saved as a JPG image (with loss).
           -> SqlPersistT m (Entity Object)
 addObject userId IndexedObject {..} imgs = do
     let tags = map tagPath $ S.toList ioTags

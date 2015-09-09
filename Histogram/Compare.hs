@@ -4,14 +4,14 @@ module Histogram.Compare (
     , minIntersec, canExceed
     ) where
 
-import Prelude
+import ClassyPrelude
 
 import Control.Lens
 import Control.Monad.Trans.State.Strict
+import Data.Vector.Storable (enumFromN)
 import Vision.Histogram (Histogram, (!), compareIntersect)
 import Vision.Primitive (Shape, ix3)
 
-import qualified Data.Vector.Storable as VS
 
 import Histogram.Config (
       confHueSimilarity, confHistNHues, confHistNSats, confHistNVals
@@ -56,7 +56,7 @@ directIntersec hist1 hist2 =
     -- smaller than a given minimum score.
     DirectIntersec (intersecOn hhColors) (intersecOn hhGreys)
   where
-    intersecOn :: (Shape sh, VS.Storable a, Num a, Ord a) =>
+    intersecOn :: (Shape sh, Storable a, Num a, Ord a) =>
                   (HeterogeneousHistogram -> Histogram sh a) -> a
     intersecOn f = compareIntersect (f hist1) (f hist2)
 
@@ -90,11 +90,11 @@ intersec DirectIntersec {..} (HeterogeneousHistogram colors1 _ _)
     crossHues = flip execState 0 $ do
         -- TODO: Cross color comparison with the neighboring values and
         -- saturations.
-        VS.forM_ (VS.enumFromN 0 confHistNHues) $ \h -> do
+        forM_ (enumFromN 0 confHistNHues) $ \h -> do
             let h' | h > 0     = h
                    | otherwise = confHistNHues - 1
-            VS.forM_ (VS.enumFromN 0 confHistNSats) $ \s ->
-                VS.forM_ (VS.enumFromN 0 confHistNVals) $ \v -> do
+            forM_ (enumFromN 0 confHistNSats) $ \s ->
+                forM_ (enumFromN 0 confHistNVals) $ \v -> do
                     let !bin1Hist1 = colors1 ! ix3 h  s v
                         !bin2Hist1 = colors1 ! ix3 h' s v
                         !bin1Hist2 = colors2 ! ix3 h  s v
